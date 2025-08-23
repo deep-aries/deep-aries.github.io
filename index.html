@@ -1,8 +1,117 @@
-  <!-- CSV 파서를 위해 PapaParse 로드 -->
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Stock Snapshot (Static)</title>
+  <style>
+    :root { --card: #ffffff; --border: #e2e8f0; --muted:#4a5568; --muted2:#718096; }
+    *{box-sizing:border-box}
+    body{font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 20px; background:#fafafa;}
+    header{display:flex; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap;}
+    .badge{padding:4px 8px; border-radius:12px; background:#edf2f7; font-size:12px;}
+    .grid{display:grid; grid-template-columns:1fr; gap:20px;}
+    @media(min-width:1100px){ .grid{grid-template-columns:1fr 1fr;} }
+    .card{background:var(--card); border:1px solid var(--border); border-radius:12px; padding:16px; box-shadow:0 1px 3px rgba(0,0,0,0.05);}
+    h2{margin:0 0 10px;}
+    .note{font-size: 12px; color:var(--muted);}
+    footer{margin-top:32px; color:var(--muted2); font-size:12px;}
+
+    .controls{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:8px 0 16px;}
+    select, button{padding:8px 10px; border:1px solid var(--border); border-radius:8px; background:white; font-size:14px;}
+    select[multiple]{min-width:280px; min-height:120px;}
+    button{cursor:pointer}
+    .row{display:flex; gap:16px; flex-wrap:wrap;}
+    .row .half{flex:1 1 380px;}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:12px; color:#2d3748;}
+  </style>
+
+  <!-- Libraries -->
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+</head>
+<body>
+  <header>
+    <h1 style="margin:0;">📈 Static Stock Dashboard</h1>
+    <span class="badge">GitHub Pages-ready</span>
+  </header>
+  <p class="note">
+    이 페이지는 <b>정적(Static)</b> 스냅샷입니다. 동일 저장소의 <span class="mono">/data/*.csv</span>를 클라이언트에서 직접 읽어 차트를 렌더링합니다.
+  </p>
+
+  <div class="grid">
+    <!-- MARKET (현재 데이터) -->
+    <section class="card">
+      <h2>Market Time Series (market.csv)</h2>
+      <div class="controls">
+        <label>Tickers (여러 개 선택 가능):</label>
+        <select id="market_ticker_select" multiple></select>
+        <button id="update_market_btn">업데이트</button>
+      </div>
+      <div id="timeseries"></div>
+    </section>
+
+    <!-- MARKET_PAST (과거 데이터) -->
+    <section class="card">
+      <h2>Past Market Time Series (market_past.csv)</h2>
+      <div class="controls">
+        <label>Tickers (여러 개 선택 가능):</label>
+        <select id="past_ticker_select" multiple></select>
+        <button id="update_past_btn">업데이트</button>
+      </div>
+      <div id="past_timeseries"></div>
+    </section>
+
+    <!-- FUTURE (히트맵) -->
+    <section class="card">
+      <h2>Future (Heatmap) — future.csv</h2>
+      <p class="note">행: Ticker, 열: 날짜, 값: 예측/모의 수치</p>
+      <div id="heatmap"></div>
+    </section>
+
+    <!-- RESULT (포트폴리오/모델 성과) -->
+    <section class="card">
+      <h2>Portfolio & Model (result.csv)</h2>
+      <div class="controls">
+        <label>Model:</label>
+        <select id="model_select"></select>
+        <label>Date:</label>
+        <select id="date_select"></select>
+        <button id="update_result_btn">업데이트</button>
+      </div>
+
+      <div class="row">
+        <div class="half">
+          <h3 style="margin:0 0 6px;">Top-5 Weights</h3>
+          <div id="portfolio_bars"></div>
+        </div>
+        <div class="half">
+          <h3 style="margin:0 0 6px;">Final Portfolio Value by Model</h3>
+          <div id="portfolio_value"></div>
+        </div>
+      </div>
+
+      <p class="note" id="portfolio_meta"></p>
+    </section>
+
+    <!-- TEST (지수 등 단일 시계열) -->
+    <section class="card">
+      <h2>Index Time Series (test.csv)</h2>
+      <div class="controls">
+        <label>Market (예: dj30 등):</label>
+        <select id="index_market_select"></select>
+        <button id="update_index_btn">업데이트</button>
+      </div>
+      <div id="index_series"></div>
+    </section>
+  </div>
+
+  <footer>
+    <p>© 2025 Static Export • Data from <span class="mono">/data/*.csv</span></p>
+  </footer>
+
   <script>
-    // 1) CSV를 fetch + 파싱
+    // ---------- CSV Loader ----------
     async function loadCSV(url) {
       const res = await fetch(url, { cache: "no-store" });
       if (!res.ok) throw new Error("Failed to fetch " + url);
@@ -11,99 +120,217 @@
         Papa.parse(text, {
           header: true,
           skipEmptyLines: true,
-          dynamicTyping: true, // 숫자 자동 변환
+          dynamicTyping: true,
           complete: (result) => resolve(result.data),
         });
       });
     }
 
-    // 2) market.csv -> {ticker: {date:[], close:[]}} 형태로 변환
-    function buildMarketSeries(rows) {
-      // 날짜 문자열을 그대로 x축으로 써도 되지만, 정렬 보장을 위해 정렬
-      rows.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+    // ---------- MARKET ----------
+    function groupMarket(rows) {
+      // 필요한 컬럼: date, ticker, close
+      rows = rows.filter(r => r.date && r.ticker && r.close != null);
+      rows.sort((a,b)=> new Date(a.date) - new Date(b.date));
+
       const byTicker = {};
+      const tickers = new Set();
+
       for (const r of rows) {
-        if (!r.ticker || r.close == null) continue;
-        if (!byTicker[r.ticker]) byTicker[r.ticker] = { date: [], close: [] };
+        tickers.add(r.ticker);
+        if (!byTicker[r.ticker]) byTicker[r.ticker] = { date:[], close:[] };
         byTicker[r.ticker].date.push(r.date);
         byTicker[r.ticker].close.push(r.close);
       }
-      return byTicker;
+      return { byTicker, tickers: Array.from(tickers).sort() };
     }
 
-    // 3) future.csv -> 히트맵용 {tickers, dates, values}로 변환
-    //    - 첫 컬럼: "Ticker"
-    //    - 나머지 컬럼명: "YYYY-MM-DD" 날짜들
-    function buildFutureMatrix(rows) {
-      if (!rows.length) return { tickers: [], dates: [], values: [] };
-
-      // PapaParse header:true 이므로 rows[0]의 키를 보면 열 이름을 알 수 있음
-      const allCols = Object.keys(rows[0]);
-      const dateCols = allCols.filter((c) => c !== "Ticker");
-
-      // tickers, values
-      const tickers = rows.map((r) => r["Ticker"]);
-      const values = rows.map((r) => dateCols.map((d) => r[d]));
-
-      return { tickers, dates: dateCols, values };
-    }
-
-    // 4) Plotly 그리기
-    function renderTimeSeries(byTicker) {
-      const traces = Object.entries(byTicker).map(([ticker, s]) => ({
-        x: s.date,
-        y: s.close,
-        type: "scatter",
-        mode: "lines",
-        name: ticker,
-      }));
-
+    function renderTimeSeries(elemId, byTicker, chosenTickers) {
+      const traces = [];
+      const selected = chosenTickers && chosenTickers.length ? chosenTickers : Object.keys(byTicker).slice(0,5);
+      for (const t of selected) {
+        const s = byTicker[t];
+        if (!s) continue;
+        traces.push({ x: s.date, y: s.close, type: "scatter", mode: "lines", name: t });
+      }
       Plotly.newPlot(
-        "timeseries",
+        elemId,
         traces,
-        {
-          margin: { t: 20, r: 10, b: 40, l: 45 },
-          xaxis: { title: "Date" },
-          yaxis: { title: "Close" },
-        },
-        { responsive: true }
+        { margin:{t:20,r:10,b:40,l:45}, xaxis:{title:"Date"}, yaxis:{title:"Close"} },
+        { responsive:true }
       );
     }
 
-    function renderHeatmap(futureData) {
+    // ---------- FUTURE (Heatmap) ----------
+    function buildFutureMatrix(rows) {
+      if (!rows || !rows.length) return { tickers:[], dates:[], values:[] };
+      const cols = Object.keys(rows[0]).filter(c => c !== "Ticker");
+      const tickers = rows.map(r => r["Ticker"]);
+      const values = rows.map(r => cols.map(c => r[c]));
+      return { tickers, dates: cols, values };
+    }
+
+    function renderHeatmap(elemId, futureData) {
       Plotly.newPlot(
-        "heatmap",
-        [
-          {
-            type: "heatmap",
-            z: futureData.values,
-            x: futureData.dates,
-            y: futureData.tickers,
-            colorbar: { title: "Price" },
-          },
-        ],
-        {
-          margin: { t: 20, r: 10, b: 40, l: 90 },
-          xaxis: { automargin: true },
-          yaxis: { automargin: true },
-        },
-        { responsive: true }
+        elemId,
+        [{ type:"heatmap", z: futureData.values, x: futureData.dates, y: futureData.tickers, colorbar:{title:"Value"} }],
+        { margin:{t:20,r:10,b:40,l:90}, xaxis:{automargin:true}, yaxis:{automargin:true} },
+        { responsive:true }
       );
     }
 
-    // 5) 실행: /data/market.csv, /data/future.csv 읽어서 렌더
-    (async function main() {
+    // ---------- RESULT (포트폴리오/모델 성과) ----------
+    function unique(arr){ return Array.from(new Set(arr)); }
+
+    function sanitizePortfolioString(s) {
+      // ' -> " 로 바꿔서 JSON.parse 시도
+      if (typeof s !== "string") return null;
       try {
-        const [marketRows, futureRows] = await Promise.all([
+        const json = JSON.parse(s.replace(/'/g,'"'));
+        return json;
+      } catch(e) {
+        return null;
+      }
+    }
+
+    function renderPortfolioBars(elemId, tickers, weights, title="Weights") {
+      Plotly.newPlot(
+        elemId,
+        [{ type:"bar", x: tickers, y: weights, hovertemplate: "%{x}<br>%{y:.4f}<extra></extra>" }],
+        { margin:{t:30,r:10,b:80,l:50}, xaxis:{tickangle:-30}, yaxis:{title:title} },
+        { responsive:true }
+      );
+    }
+
+    function renderPortfolioValue(elemId, rows) {
+      // 라인 차트: x=date, y=Final Portfolio Value, 색=Model
+      // 날짜 정렬
+      rows = rows.filter(r => r.date && r["Final Portfolio Value"] != null && r.model);
+      rows.sort((a,b)=> new Date(a.date) - new Date(b.date));
+      const byModel = {};
+      for (const r of rows) {
+        if (!byModel[r.model]) byModel[r.model] = {x:[], y:[]};
+        byModel[r.model].x.push(r.date);
+        byModel[r.model].y.push(r["Final Portfolio Value"]);
+      }
+      const traces = Object.entries(byModel).map(([m,s]) => ({
+        type:"scatter", mode:"lines", name:m, x:s.x, y:s.y
+      }));
+      Plotly.newPlot(
+        elemId,
+        traces,
+        { margin:{t:20,r:10,b:40,l:50}, xaxis:{title:"Date"}, yaxis:{title:"Final Portfolio Value"} },
+        { responsive:true }
+      );
+    }
+
+    // ---------- TEST (지수 등) ----------
+    function renderIndexSeries(elemId, rows, marketName) {
+      let data = rows;
+      if (marketName) data = rows.filter(r => r.market === marketName);
+      data = data.filter(r => r.date && r.close != null);
+      data.sort((a,b)=> new Date(a.date) - new Date(b.date));
+
+      Plotly.newPlot(
+        elemId,
+        [{ type:"scatter", mode:"lines", name: marketName || "index", x: data.map(r=>r.date), y: data.map(r=>r.close) }],
+        { margin:{t:20,r:10,b:40,l:50}, xaxis:{title:"Date"}, yaxis:{title:"Close"} },
+        { responsive:true }
+      );
+    }
+
+    // ---------- MAIN ----------
+    window.addEventListener("DOMContentLoaded", async () => {
+      try {
+        // 데이터 로드
+        const [marketRows, pastRows, futureRows, resultRows, testRows] = await Promise.all([
           loadCSV("data/market.csv"),
+          loadCSV("data/market_past.csv"),
           loadCSV("data/future.csv"),
+          loadCSV("data/result.csv"),
+          loadCSV("data/test.csv"),
         ]);
 
-        const byTicker = buildMarketSeries(marketRows);
-        renderTimeSeries(byTicker);
+        // MARKET
+        const mkt = groupMarket(marketRows);
+        const marketSel = document.getElementById("market_ticker_select");
+        mkt.tickers.forEach(t => {
+          const opt = document.createElement("option"); opt.value = t; opt.textContent = t; marketSel.appendChild(opt);
+        });
+        // 초기 랜더 (앞에서 5개)
+        renderTimeSeries("timeseries", mkt.byTicker, []);
+        document.getElementById("update_market_btn").addEventListener("click", ()=>{
+          const chosen = Array.from(marketSel.selectedOptions).map(o=>o.value).slice(0,15); // 너무 많을 경우 제한
+          renderTimeSeries("timeseries", mkt.byTicker, chosen);
+        });
 
-        const futureData = buildFutureMatrix(futureRows);
-        renderHeatmap(futureData);
+        // MARKET_PAST
+        const past = groupMarket(pastRows);
+        const pastSel = document.getElementById("past_ticker_select");
+        past.tickers.forEach(t => {
+          const opt = document.createElement("option"); opt.value = t; opt.textContent = t; pastSel.appendChild(opt);
+        });
+        renderTimeSeries("past_timeseries", past.byTicker, []);
+        document.getElementById("update_past_btn").addEventListener("click", ()=>{
+          const chosen = Array.from(pastSel.selectedOptions).map(o=>o.value).slice(0,15);
+          renderTimeSeries("past_timeseries", past.byTicker, chosen);
+        });
+
+        // FUTURE HEATMAP
+        const future = buildFutureMatrix(futureRows);
+        renderHeatmap("heatmap", future);
+
+        // RESULT (포트폴리오/모델)
+        const modelSel = document.getElementById("model_select");
+        const dateSel  = document.getElementById("date_select");
+        const models = unique(resultRows.map(r=>r.model).filter(Boolean)).sort();
+        const dates  = unique(resultRows.map(r=>r.date).filter(Boolean)).sort((a,b)=> new Date(a)-new Date(b));
+        models.forEach(m=>{ const o=document.createElement("option"); o.value=m; o.textContent=m; modelSel.appendChild(o); });
+        dates.forEach(d=>{ const o=document.createElement("option"); o.value=d; o.textContent=d; dateSel.appendChild(o); });
+
+        function updateResultSection() {
+          const mdl = modelSel.value || models[0];
+          const dt  = dateSel.value  || dates[dates.length-1];
+
+          const rows = resultRows.filter(r => r.model===mdl && r.date===dt);
+
+          // 메타 텍스트
+          const info = rows[0] || {};
+          const metaEl = document.getElementById("portfolio_meta");
+          metaEl.textContent = `Model: ${mdl} • Date: ${dt} • Market: ${info.market ?? "—"} • Ticker: ${info.ticker ?? "—"} • Pred Len: ${info.pred_len ?? "—"} • Final PV: ${info["Final Portfolio Value"] ?? "—"}`;
+
+          // Top-5 막대 차트
+          let t5 = [], w5 = [];
+          if (rows.length) {
+            const topList  = (rows[0].top_5_portfolio || "").split(",").map(s=>s.trim()).filter(Boolean);
+            const pr = sanitizePortfolioString(rows[0].portfolio_ratio);
+            // 포맷: {'top_5':[...], 'least_5':[...]} 형태 가정
+            if (pr && Array.isArray(pr.top_5) && pr.top_5.length === topList.length) {
+              t5 = topList;
+              w5 = pr.top_5;
+            } else {
+              // 백업: 균등 가중 추정
+              t5 = topList;
+              w5 = topList.map(()=>1/topList.length);
+            }
+          }
+          renderPortfolioBars("portfolio_bars", t5, w5, "Weight");
+
+          // 모델별 성과 라인 차트
+          const sameMarket = resultRows.filter(r => r.market === (rows[0]?.market ?? rows[0]?.market));
+          renderPortfolioValue("portfolio_value", sameMarket.length ? sameMarket : resultRows);
+        }
+        updateResultSection();
+        document.getElementById("update_result_btn").addEventListener("click", updateResultSection);
+
+        // TEST (지수)
+        const indexSel = document.getElementById("index_market_select");
+        const indexMarkets = unique(testRows.map(r=>r.market).filter(Boolean)).sort();
+        indexMarkets.forEach(m=>{ const o=document.createElement("option"); o.value=m; o.textContent=m; indexSel.appendChild(o); });
+        renderIndexSeries("index_series", testRows, indexMarkets[0]);
+        document.getElementById("update_index_btn").addEventListener("click", ()=>{
+          renderIndexSeries("index_series", testRows, indexSel.value);
+        });
+
       } catch (e) {
         console.error(e);
         const err = document.createElement("div");
@@ -112,5 +339,7 @@
         err.textContent = "데이터를 불러오는 중 오류가 발생했습니다: " + e.message;
         document.body.appendChild(err);
       }
-    })();
+    });
   </script>
+</body>
+</html>
