@@ -1,4 +1,4 @@
-ㅇㄷㄳㄴㄷㅅ
+
 # Static Stock Dashboard (Snapshot)
 
 이 폴더는 GitHub Pages에 바로 올릴 수 있는 **정적 사이트** 스냅샷입니다.
