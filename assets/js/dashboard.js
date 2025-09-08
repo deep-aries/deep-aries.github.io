@@ -441,9 +441,6 @@ class StockDashboard {
       case 'risk':
         this.initializeRiskTab();
         break;
-      case 'news':
-        this.initializeNewsTab();
-        break;
     }
   }
 
@@ -594,65 +591,6 @@ class StockDashboard {
     document.getElementById('treynor_ratio').textContent = this.advancedFeatures.formatNumber(metrics.treynorRatio);
   }
 
-  // News Tab Methods
-  initializeNewsTab() {
-    const marketData = this.groupMarket(this.data.market);
-    this.populateSelect('news_ticker_select', marketData.tickers);
-  }
-
-  loadNewsFeed() {
-    const newsFeed = document.getElementById('news_feed');
-    const mockNews = [
-      {
-        title: "AI Models Show Promising Results in Stock Prediction",
-        content: "Recent research demonstrates significant improvements in financial market prediction using advanced deep learning architectures.",
-        date: new Date().toISOString(),
-        source: "Financial Research Journal",
-        sentiment: { sentiment: 'positive' }
-      },
-      {
-        title: "Portfolio Optimization Algorithms Achieve Superior Risk-Adjusted Returns",
-        content: "New optimization techniques show enhanced performance in portfolio management with improved Sharpe ratios.",
-        date: new Date(Date.now() - 86400000).toISOString(),
-        source: "Quantitative Finance Review",
-        sentiment: { sentiment: 'positive' }
-      },
-      {
-        title: "Sentiment Analysis Integration Improves Market Forecasting Accuracy",
-        content: "Combining traditional financial data with sentiment analysis from news and social media shows measurable improvements.",
-        date: new Date(Date.now() - 172800000).toISOString(),
-        source: "Journal of Financial Technology",
-        sentiment: { sentiment: 'positive' }
-      }
-    ];
-    
-    newsFeed.innerHTML = mockNews.map(news => `
-      <div class="news-item">
-        <h4>${news.title}</h4>
-        <p>${news.content}</p>
-        <div class="news-meta">
-          <span>${news.source}</span>
-          <span class="sentiment-badge sentiment-${news.sentiment.sentiment}">
-            ${news.sentiment.sentiment}
-          </span>
-        </div>
-      </div>
-    `).join('');
-  }
-
-  updateNewsSentiment() {
-    const ticker = document.getElementById('news_ticker_select').value;
-    const period = document.getElementById('news_period_select').value;
-    
-    // Mock sentiment analysis
-    this.renderSentimentChart('sentiment_chart', ticker, period);
-  }
-
-  updateSocialSentiment() {
-    const platform = document.getElementById('social_platform').value;
-    // Mock social sentiment
-    this.renderSocialSentimentChart('social_sentiment_chart', platform);
-  }
 
   // Utility Methods
   exportData(data, filename) {
@@ -825,37 +763,6 @@ class StockDashboard {
     });
   }
 
-  renderSentimentChart(containerId, ticker, period) {
-    const trace = {
-      x: Array.from({length: 30}, (_, i) => new Date(Date.now() - (29-i) * 86400000)),
-      y: Array.from({length: 30}, () => Math.random() * 2 - 1),
-      type: 'scatter',
-      mode: 'lines',
-      name: 'Sentiment Score'
-    };
-    
-    Plotly.newPlot(containerId, [trace], {
-      title: `News Sentiment: ${ticker}`,
-      xaxis: { title: 'Date' },
-      yaxis: { title: 'Sentiment Score' }
-    });
-  }
-
-  renderSocialSentimentChart(containerId, platform) {
-    const trace = {
-      x: Array.from({length: 24}, (_, i) => i),
-      y: Array.from({length: 24}, () => Math.random() * 2 - 1),
-      type: 'scatter',
-      mode: 'lines',
-      name: platform
-    };
-    
-    Plotly.newPlot(containerId, [trace], {
-      title: `Social Media Sentiment: ${platform}`,
-      xaxis: { title: 'Hour' },
-      yaxis: { title: 'Sentiment Score' }
-    });
-  }
 }
 
 // Initialize dashboard when DOM is loaded

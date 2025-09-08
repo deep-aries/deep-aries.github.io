@@ -15,10 +15,4 @@ exclude:
   - .gitignore
   - Gemfile
   - Gemfile.lock
-
-# 성능 최적화
-compress_html:
-  clippings: all
-  comments: all
-  endings: all
-  startings: [html, head, body]
+  - TODOs.md
