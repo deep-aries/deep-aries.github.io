@@ -1,30 +1,19 @@
 <!doctype html>
-<html lang="ko">
+<html lang="en">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Stock Snapshot (Static)</title>
-  <style>
-    :root { --card: #ffffff; --border: #e2e8f0; --muted:#4a5568; --muted2:#718096; }
-    *{box-sizing:border-box}
-    body{font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 20px; background:#fafafa;}
-    header{display:flex; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap;}
-    .badge{padding:4px 8px; border-radius:12px; background:#edf2f7; font-size:12px;}
-    .grid{display:grid; grid-template-columns:1fr; gap:20px;}
-    @media(min-width:1100px){ .grid{grid-template-columns:1fr 1fr;} }
-    .card{background:var(--card); border:1px solid var(--border); border-radius:12px; padding:16px; box-shadow:0 1px 3px rgba(0,0,0,0.05);}
-    h2{margin:0 0 10px;}
-    .note{font-size: 12px; color:var(--muted);}
-    footer{margin-top:32px; color:var(--muted2); font-size:12px;}
-
-    .controls{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:8px 0 16px;}
-    select, button{padding:8px 10px; border:1px solid var(--border); border-radius:8px; background:white; font-size:14px;}
-    select[multiple]{min-width:280px; min-height:120px;}
-    button{cursor:pointer}
-    .row{display:flex; gap:16px; flex-wrap:wrap;}
-    .row .half{flex:1 1 380px;}
-    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:12px; color:#2d3748;}
-  </style>
+  <title>Deep Aries - Academic Research Demo</title>
+  <meta name="description" content="Academic research demonstration of AI-powered stock market analysis and portfolio optimization algorithms">
+  <meta name="keywords" content="academic research, stock analysis, AI, portfolio optimization, deep learning, financial modeling">
+  <meta name="author" content="Deep Aries Research Team">
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#2563eb">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Deep Aries">
+  <link rel="apple-touch-icon" href="assets/icons/icon-192x192.png">
 
   <!-- Libraries -->
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
@@ -32,314 +21,423 @@
 </head>
 <body>
   <header>
-    <h1 style="margin:0;">📈 Static Stock Dashboard</h1>
-    <span class="badge">GitHub Pages-ready</span>
+    <h1 style="margin:0;">🔬 Deep Aries Research</h1>
+    <span class="badge">Academic Demo</span>
   </header>
-  <p class="note">
-    [진규가 고친다고 침.] 이 페이지는 <b>정적(Static)</b> 스냅샷입니다. 동일 저장소의 <span class="mono">/data/*.csv</span>를 클라이언트에서 직접 읽어 차트를 렌더링합니다.
-  </p>
-
-  <div class="grid">
-    <!-- MARKET (현재 데이터) -->
-    <section class="card">
-      <h2>Market Time Series (market.csv)</h2>
-      <div class="controls">
-        <label>Tickers (여러 개 선택 가능):</label>
-        <select id="market_ticker_select" multiple></select>
-        <button id="update_market_btn">업데이트</button>
+  
+  <!-- Academic Introduction -->
+  <section class="academic-intro">
+    <h2>Research Overview</h2>
+    <p class="research-description">
+      This demonstration showcases our academic research on <strong>AI-powered financial market analysis and portfolio optimization</strong>. 
+      Our work presents novel approaches to stock market prediction using deep learning techniques and advanced portfolio management algorithms.
+    </p>
+    
+    <div class="research-highlights">
+      <div class="highlight-card">
+        <h3>📊 Novel AI Models</h3>
+        <p>Advanced deep learning architectures for financial time series prediction and market analysis.</p>
       </div>
-      <div id="timeseries"></div>
-    </section>
-
-    <!-- MARKET_PAST (과거 데이터) -->
-    <section class="card">
-      <h2>Past Market Time Series (market_past.csv)</h2>
-      <div class="controls">
-        <label>Tickers (여러 개 선택 가능):</label>
-        <select id="past_ticker_select" multiple></select>
-        <button id="update_past_btn">업데이트</button>
+      <div class="highlight-card">
+        <h3>🎯 Portfolio Optimization</h3>
+        <p>Enhanced Markowitz optimization with risk-adjusted returns and dynamic rebalancing strategies.</p>
       </div>
-      <div id="past_timeseries"></div>
-    </section>
-
-    <!-- FUTURE (히트맵) -->
-    <section class="card">
-      <h2>Future (Heatmap) — future.csv</h2>
-      <p class="note">행: Ticker, 열: 날짜, 값: 예측/모의 수치</p>
-      <div id="heatmap"></div>
-    </section>
-
-    <!-- RESULT (포트폴리오/모델 성과) -->
-    <section class="card">
-      <h2>Portfolio & Model (result.csv)</h2>
-      <div class="controls">
-        <label>Model:</label>
-        <select id="model_select"></select>
-        <label>Date:</label>
-        <select id="date_select"></select>
-        <button id="update_result_btn">업데이트</button>
+      <div class="highlight-card">
+        <h3>⚠️ Risk Management</h3>
+        <p>Comprehensive risk assessment using VaR, Expected Shortfall, and stress testing methodologies.</p>
       </div>
+      <div class="highlight-card">
+        <h3>📈 Sentiment Analysis</h3>
+        <p>Multi-modal sentiment analysis combining news, social media, and market data for enhanced predictions.</p>
+      </div>
+    </div>
+    
+    <div class="paper-info">
+      <h3>📄 Related Publications</h3>
+      <p><em>This demo accompanies our research paper: "Deep Learning Approaches for Financial Market Analysis and Portfolio Optimization"</em></p>
+      <p><strong>Authors:</strong> Deep Aries Research Team | <strong>Institution:</strong> [Your Institution] | <strong>Year:</strong> 2025</p>
+    </div>
+  </section>
 
-      <div class="row">
-        <div class="half">
-          <h3 style="margin:0 0 6px;">Top-5 Weights</h3>
-          <div id="portfolio_bars"></div>
+  <!-- Navigation Tabs -->
+  <nav class="tabs">
+    <button class="tab-button active" data-tab="dashboard">📊 Market Data</button>
+    <button class="tab-button" data-tab="analysis">🔍 Technical Analysis</button>
+    <button class="tab-button" data-tab="portfolio">💼 Portfolio Optimization</button>
+    <button class="tab-button" data-tab="risk">⚠️ Risk Management</button>
+    <button class="tab-button" data-tab="news">📰 Sentiment Analysis</button>
+  </nav>
+
+  <!-- Dashboard Tab -->
+  <div class="tab-content active" id="dashboard">
+    <div class="grid">
+      <!-- MARKET (Current Data) -->
+      <section class="card">
+        <h2>📈 Real-time Market Data</h2>
+        <div class="controls">
+          <label>Select Tickers (Multiple Selection):</label>
+          <select id="market_ticker_select" multiple></select>
+          <button id="update_market_btn">Update</button>
+          <button id="export_market_btn">📥 Export</button>
         </div>
-        <div class="half">
-          <h3 style="margin:0 0 6px;">Final Portfolio Value by Model</h3>
-          <div id="portfolio_value"></div>
+        <div class="chart-container">
+          <div id="timeseries"></div>
         </div>
-      </div>
+      </section>
 
-      <p class="note" id="portfolio_meta"></p>
-    </section>
+      <!-- MARKET_PAST (Historical Data) -->
+      <section class="card">
+        <h2>📉 Historical Market Data</h2>
+        <div class="controls">
+          <label>Select Tickers (Multiple Selection):</label>
+          <select id="past_ticker_select" multiple></select>
+          <button id="update_past_btn">Update</button>
+          <button id="export_past_btn">📥 Export</button>
+        </div>
+        <div class="chart-container">
+          <div id="past_timeseries"></div>
+        </div>
+      </section>
 
-    <!-- TEST (지수 등 단일 시계열) -->
-    <section class="card">
-      <h2>Index Time Series (test.csv)</h2>
-      <div class="controls">
-        <label>Market (예: dj30 등):</label>
-        <select id="index_market_select"></select>
-        <button id="update_index_btn">업데이트</button>
-      </div>
-      <div id="index_series"></div>
-    </section>
+      <!-- FUTURE (Heatmap) -->
+      <section class="card">
+        <h2>🔮 AI Prediction Heatmap</h2>
+        <p class="note">Rows: Tickers, Columns: Dates, Values: AI Model Predictions</p>
+        <div class="controls">
+          <button id="export_heatmap_btn">📥 Export</button>
+          <button id="fullscreen_heatmap_btn">🔍 Fullscreen</button>
+        </div>
+        <div class="chart-container">
+          <div id="heatmap"></div>
+        </div>
+      </section>
+
+      <!-- RESULT (Portfolio/Model Performance) -->
+      <section class="card">
+        <h2>💼 Portfolio & Model Performance</h2>
+        <div class="controls">
+          <label>Model:</label>
+          <select id="model_select"></select>
+          <label>Date:</label>
+          <select id="date_select"></select>
+          <button id="update_result_btn">Update</button>
+          <button id="export_result_btn">📥 Export</button>
+        </div>
+
+        <div class="row">
+          <div class="half">
+            <h3 style="margin:0 0 6px;">🏆 Top-5 Weights</h3>
+            <div id="portfolio_bars"></div>
+          </div>
+          <div class="half">
+            <h3 style="margin:0 0 6px;">📊 Portfolio Value by Model</h3>
+            <div id="portfolio_value"></div>
+          </div>
+        </div>
+
+        <p class="note" id="portfolio_meta"></p>
+      </section>
+
+      <!-- TEST (Index Time Series) -->
+      <section class="card">
+        <h2>📊 Index Time Series</h2>
+        <div class="controls">
+          <label>Market (e.g., dj30):</label>
+          <select id="index_market_select"></select>
+          <button id="update_index_btn">Update</button>
+          <button id="export_index_btn">📥 Export</button>
+        </div>
+        <div class="chart-container">
+          <div id="index_series"></div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- Analysis Tab -->
+  <div class="tab-content" id="analysis">
+    <div class="grid">
+      <!-- Technical Indicators -->
+      <section class="card">
+        <h2>📈 Technical Indicators</h2>
+        <div class="controls">
+          <label>Ticker:</label>
+          <select id="tech_ticker_select"></select>
+          <label>Indicator:</label>
+          <select id="indicator_select">
+            <option value="sma">Simple Moving Average (SMA)</option>
+            <option value="ema">Exponential Moving Average (EMA)</option>
+            <option value="rsi">Relative Strength Index (RSI)</option>
+            <option value="macd">MACD</option>
+            <option value="bollinger">Bollinger Bands</option>
+          </select>
+          <button id="update_tech_btn">Analyze</button>
+        </div>
+        <div class="chart-container">
+          <div id="technical_chart"></div>
+        </div>
+      </section>
+
+      <!-- Candlestick Chart -->
+      <section class="card">
+        <h2>🕯️ Candlestick Chart</h2>
+        <div class="controls">
+          <label>Ticker:</label>
+          <select id="candle_ticker_select"></select>
+          <label>Period:</label>
+          <select id="candle_period_select">
+            <option value="1D">1 Day</option>
+            <option value="1W">1 Week</option>
+            <option value="1M">1 Month</option>
+            <option value="3M">3 Months</option>
+          </select>
+          <button id="update_candle_btn">Update</button>
+        </div>
+        <div class="chart-container">
+          <div id="candlestick_chart"></div>
+        </div>
+      </section>
+
+      <!-- Volume Analysis -->
+      <section class="card">
+        <h2>📊 Volume Analysis</h2>
+        <div class="controls">
+          <label>Ticker:</label>
+          <select id="volume_ticker_select"></select>
+          <button id="update_volume_btn">Analyze</button>
+        </div>
+        <div class="chart-container">
+          <div id="volume_chart"></div>
+        </div>
+      </section>
+
+      <!-- Correlation Matrix -->
+      <section class="card">
+        <h2>🔗 Correlation Matrix</h2>
+        <div class="controls">
+          <label>Select Tickers (Max 10):</label>
+          <select id="correlation_tickers" multiple></select>
+          <button id="update_correlation_btn">Analyze</button>
+        </div>
+        <div class="chart-container">
+          <div id="correlation_matrix"></div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- Portfolio Tab -->
+  <div class="tab-content" id="portfolio">
+    <div class="grid">
+      <!-- Portfolio Optimization -->
+      <section class="card">
+        <h2>🎯 Portfolio Optimization</h2>
+        <div class="controls">
+          <label>Target Return:</label>
+          <input type="number" id="target_return" step="0.01" value="0.1" min="0" max="1">
+          <label>Risk Tolerance:</label>
+          <select id="risk_tolerance">
+            <option value="low">Low</option>
+            <option value="medium" selected>Medium</option>
+            <option value="high">High</option>
+          </select>
+          <button id="optimize_portfolio_btn">Optimize</button>
+        </div>
+        <div class="chart-container">
+          <div id="portfolio_optimization"></div>
+        </div>
+      </section>
+
+      <!-- Portfolio Performance -->
+      <section class="card">
+        <h2>📊 Portfolio Performance</h2>
+        <div class="performance-metrics">
+          <div class="metric">
+            <span class="metric-label">Total Return</span>
+            <span class="metric-value" id="total_return">-</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Sharpe Ratio</span>
+            <span class="metric-value" id="sharpe_ratio">-</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Max Drawdown</span>
+            <span class="metric-value" id="max_drawdown">-</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Volatility</span>
+            <span class="metric-value" id="volatility">-</span>
+          </div>
+        </div>
+        <div class="chart-container">
+          <div id="portfolio_performance"></div>
+        </div>
+      </section>
+
+      <!-- Asset Allocation -->
+      <section class="card">
+        <h2>🥧 Asset Allocation</h2>
+        <div class="chart-container">
+          <div id="asset_allocation"></div>
+        </div>
+      </section>
+
+      <!-- Rebalancing -->
+      <section class="card">
+        <h2>⚖️ Rebalancing</h2>
+        <div class="controls">
+          <label>Rebalancing Frequency:</label>
+          <select id="rebalance_frequency">
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly" selected>Monthly</option>
+            <option value="quarterly">Quarterly</option>
+          </select>
+          <button id="rebalance_btn">Execute Rebalancing</button>
+        </div>
+        <div class="chart-container">
+          <div id="rebalancing_chart"></div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- Risk Tab -->
+  <div class="tab-content" id="risk">
+    <div class="grid">
+      <!-- VaR Analysis -->
+      <section class="card">
+        <h2>⚠️ VaR (Value at Risk) Analysis</h2>
+        <div class="controls">
+          <label>Confidence Level:</label>
+          <select id="var_confidence">
+            <option value="0.95">95%</option>
+            <option value="0.99" selected>99%</option>
+          </select>
+          <label>Time Horizon:</label>
+          <select id="var_horizon">
+            <option value="1">1 Day</option>
+            <option value="5">5 Days</option>
+            <option value="10">10 Days</option>
+            <option value="30">30 Days</option>
+          </select>
+          <button id="calculate_var_btn">Calculate VaR</button>
+        </div>
+        <div class="risk-metrics">
+          <div class="metric">
+            <span class="metric-label">VaR</span>
+            <span class="metric-value" id="var_value">-</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Expected Shortfall</span>
+            <span class="metric-value" id="expected_shortfall">-</span>
+          </div>
+        </div>
+        <div class="chart-container">
+          <div id="var_chart"></div>
+        </div>
+      </section>
+
+      <!-- Stress Testing -->
+      <section class="card">
+        <h2>🌪️ Stress Testing</h2>
+        <div class="controls">
+          <label>Scenario:</label>
+          <select id="stress_scenario">
+            <option value="market_crash">Market Crash (-20%)</option>
+            <option value="recession">Recession (-15%)</option>
+            <option value="volatility_spike">Volatility Spike</option>
+            <option value="custom">Custom</option>
+          </select>
+          <button id="run_stress_test_btn">Run Test</button>
+        </div>
+        <div class="chart-container">
+          <div id="stress_test_chart"></div>
+        </div>
+      </section>
+
+      <!-- Risk Metrics -->
+      <section class="card">
+        <h2>📊 Risk Metrics</h2>
+        <div class="risk-metrics-grid">
+          <div class="metric">
+            <span class="metric-label">Beta</span>
+            <span class="metric-value" id="beta">-</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Alpha</span>
+            <span class="metric-value" id="alpha">-</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Information Ratio</span>
+            <span class="metric-value" id="information_ratio">-</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Treynor Ratio</span>
+            <span class="metric-value" id="treynor_ratio">-</span>
+          </div>
+        </div>
+        <div class="chart-container">
+          <div id="risk_metrics_chart"></div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- News Tab -->
+  <div class="tab-content" id="news">
+    <div class="grid">
+      <!-- News Sentiment -->
+      <section class="card">
+        <h2>📰 News Sentiment Analysis</h2>
+        <div class="controls">
+          <label>Ticker:</label>
+          <select id="news_ticker_select"></select>
+          <label>Period:</label>
+          <select id="news_period_select">
+            <option value="1D">1 Day</option>
+            <option value="1W">1 Week</option>
+            <option value="1M" selected>1 Month</option>
+          </select>
+          <button id="update_news_btn">Analyze</button>
+        </div>
+        <div class="chart-container">
+          <div id="sentiment_chart"></div>
+        </div>
+      </section>
+
+      <!-- News Feed -->
+      <section class="card">
+        <h2>📰 Latest News</h2>
+        <div class="news-feed" id="news_feed">
+          <div class="loading">Loading news...</div>
+        </div>
+      </section>
+
+      <!-- Social Media Sentiment -->
+      <section class="card">
+        <h2>💬 Social Media Sentiment</h2>
+        <div class="controls">
+          <label>Platform:</label>
+          <select id="social_platform">
+            <option value="twitter">Twitter</option>
+            <option value="reddit">Reddit</option>
+            <option value="all">All</option>
+          </select>
+          <button id="update_social_btn">Update</button>
+        </div>
+        <div class="chart-container">
+          <div id="social_sentiment_chart"></div>
+        </div>
+      </section>
+    </div>
   </div>
 
   <footer>
-    <p>© 2025 Static Export • Data from <span class="mono">/data/*.csv</span></p>
+    <p>© 2025 Deep Aries Research • Academic Research Demo • <a href="https://github.com/deep-aries/deep-aries.github.io" target="_blank">GitHub Repository</a></p>
   </footer>
 
-  <script>
-    // ---------- CSV Loader ----------
-    async function loadCSV(url) {
-      const res = await fetch(url, { cache: "no-store" });
-      if (!res.ok) throw new Error("Failed to fetch " + url);
-      const text = await res.text();
-      return new Promise((resolve) => {
-        Papa.parse(text, {
-          header: true,
-          skipEmptyLines: true,
-          dynamicTyping: true,
-          complete: (result) => resolve(result.data),
-        });
-      });
-    }
-
-    // ---------- MARKET ----------
-    function groupMarket(rows) {
-      // 필요한 컬럼: date, ticker, close
-      rows = rows.filter(r => r.date && r.ticker && r.close != null);
-      rows.sort((a,b)=> new Date(a.date) - new Date(b.date));
-
-      const byTicker = {};
-      const tickers = new Set();
-
-      for (const r of rows) {
-        tickers.add(r.ticker);
-        if (!byTicker[r.ticker]) byTicker[r.ticker] = { date:[], close:[] };
-        byTicker[r.ticker].date.push(r.date);
-        byTicker[r.ticker].close.push(r.close);
-      }
-      return { byTicker, tickers: Array.from(tickers).sort() };
-    }
-
-    function renderTimeSeries(elemId, byTicker, chosenTickers) {
-      const traces = [];
-      const selected = chosenTickers && chosenTickers.length ? chosenTickers : Object.keys(byTicker).slice(0,5);
-      for (const t of selected) {
-        const s = byTicker[t];
-        if (!s) continue;
-        traces.push({ x: s.date, y: s.close, type: "scatter", mode: "lines", name: t });
-      }
-      Plotly.newPlot(
-        elemId,
-        traces,
-        { margin:{t:20,r:10,b:40,l:45}, xaxis:{title:"Date"}, yaxis:{title:"Close"} },
-        { responsive:true }
-      );
-    }
-
-    // ---------- FUTURE (Heatmap) ----------
-    function buildFutureMatrix(rows) {
-      if (!rows || !rows.length) return { tickers:[], dates:[], values:[] };
-      const cols = Object.keys(rows[0]).filter(c => c !== "Ticker");
-      const tickers = rows.map(r => r["Ticker"]);
-      const values = rows.map(r => cols.map(c => r[c]));
-      return { tickers, dates: cols, values };
-    }
-
-    function renderHeatmap(elemId, futureData) {
-      Plotly.newPlot(
-        elemId,
-        [{ type:"heatmap", z: futureData.values, x: futureData.dates, y: futureData.tickers, colorbar:{title:"Value"} }],
-        { margin:{t:20,r:10,b:40,l:90}, xaxis:{automargin:true}, yaxis:{automargin:true} },
-        { responsive:true }
-      );
-    }
-
-    // ---------- RESULT (포트폴리오/모델 성과) ----------
-    function unique(arr){ return Array.from(new Set(arr)); }
-
-    function sanitizePortfolioString(s) {
-      // ' -> " 로 바꿔서 JSON.parse 시도
-      if (typeof s !== "string") return null;
-      try {
-        const json = JSON.parse(s.replace(/'/g,'"'));
-        return json;
-      } catch(e) {
-        return null;
-      }
-    }
-
-    function renderPortfolioBars(elemId, tickers, weights, title="Weights") {
-      Plotly.newPlot(
-        elemId,
-        [{ type:"bar", x: tickers, y: weights, hovertemplate: "%{x}<br>%{y:.4f}<extra></extra>" }],
-        { margin:{t:30,r:10,b:80,l:50}, xaxis:{tickangle:-30}, yaxis:{title:title} },
-        { responsive:true }
-      );
-    }
-
-    function renderPortfolioValue(elemId, rows) {
-      // 라인 차트: x=date, y=Final Portfolio Value, 색=Model
-      // 날짜 정렬
-      rows = rows.filter(r => r.date && r["Final Portfolio Value"] != null && r.model);
-      rows.sort((a,b)=> new Date(a.date) - new Date(b.date));
-      const byModel = {};
-      for (const r of rows) {
-        if (!byModel[r.model]) byModel[r.model] = {x:[], y:[]};
-        byModel[r.model].x.push(r.date);
-        byModel[r.model].y.push(r["Final Portfolio Value"]);
-      }
-      const traces = Object.entries(byModel).map(([m,s]) => ({
-        type:"scatter", mode:"lines", name:m, x:s.x, y:s.y
-      }));
-      Plotly.newPlot(
-        elemId,
-        traces,
-        { margin:{t:20,r:10,b:40,l:50}, xaxis:{title:"Date"}, yaxis:{title:"Final Portfolio Value"} },
-        { responsive:true }
-      );
-    }
-
-    // ---------- TEST (지수 등) ----------
-    function renderIndexSeries(elemId, rows, marketName) {
-      let data = rows;
-      if (marketName) data = rows.filter(r => r.market === marketName);
-      data = data.filter(r => r.date && r.close != null);
-      data.sort((a,b)=> new Date(a.date) - new Date(b.date));
-
-      Plotly.newPlot(
-        elemId,
-        [{ type:"scatter", mode:"lines", name: marketName || "index", x: data.map(r=>r.date), y: data.map(r=>r.close) }],
-        { margin:{t:20,r:10,b:40,l:50}, xaxis:{title:"Date"}, yaxis:{title:"Close"} },
-        { responsive:true }
-      );
-    }
-
-    // ---------- MAIN ----------
-    window.addEventListener("DOMContentLoaded", async () => {
-      try {
-        // 데이터 로드
-        const [marketRows, pastRows, futureRows, resultRows, testRows] = await Promise.all([
-          loadCSV("data/market.csv"),
-          loadCSV("data/market_past.csv"),
-          loadCSV("data/future.csv"),
-          loadCSV("data/result.csv"),
-          loadCSV("data/test.csv"),
-        ]);
-
-        // MARKET
-        const mkt = groupMarket(marketRows);
-        const marketSel = document.getElementById("market_ticker_select");
-        mkt.tickers.forEach(t => {
-          const opt = document.createElement("option"); opt.value = t; opt.textContent = t; marketSel.appendChild(opt);
-        });
-        // 초기 랜더 (앞에서 5개)
-        renderTimeSeries("timeseries", mkt.byTicker, []);
-        document.getElementById("update_market_btn").addEventListener("click", ()=>{
-          const chosen = Array.from(marketSel.selectedOptions).map(o=>o.value).slice(0,15); // 너무 많을 경우 제한
-          renderTimeSeries("timeseries", mkt.byTicker, chosen);
-        });
-
-        // MARKET_PAST
-        const past = groupMarket(pastRows);
-        const pastSel = document.getElementById("past_ticker_select");
-        past.tickers.forEach(t => {
-          const opt = document.createElement("option"); opt.value = t; opt.textContent = t; pastSel.appendChild(opt);
-        });
-        renderTimeSeries("past_timeseries", past.byTicker, []);
-        document.getElementById("update_past_btn").addEventListener("click", ()=>{
-          const chosen = Array.from(pastSel.selectedOptions).map(o=>o.value).slice(0,15);
-          renderTimeSeries("past_timeseries", past.byTicker, chosen);
-        });
-
-        // FUTURE HEATMAP
-        const future = buildFutureMatrix(futureRows);
-        renderHeatmap("heatmap", future);
-
-        // RESULT (포트폴리오/모델)
-        const modelSel = document.getElementById("model_select");
-        const dateSel  = document.getElementById("date_select");
-        const models = unique(resultRows.map(r=>r.model).filter(Boolean)).sort();
-        const dates  = unique(resultRows.map(r=>r.date).filter(Boolean)).sort((a,b)=> new Date(a)-new Date(b));
-        models.forEach(m=>{ const o=document.createElement("option"); o.value=m; o.textContent=m; modelSel.appendChild(o); });
-        dates.forEach(d=>{ const o=document.createElement("option"); o.value=d; o.textContent=d; dateSel.appendChild(o); });
-
-        function updateResultSection() {
-          const mdl = modelSel.value || models[0];
-          const dt  = dateSel.value  || dates[dates.length-1];
-
-          const rows = resultRows.filter(r => r.model===mdl && r.date===dt);
-
-          // 메타 텍스트
-          const info = rows[0] || {};
-          const metaEl = document.getElementById("portfolio_meta");
-          metaEl.textContent = `Model: ${mdl} • Date: ${dt} • Market: ${info.market ?? "—"} • Ticker: ${info.ticker ?? "—"} • Pred Len: ${info.pred_len ?? "—"} • Final PV: ${info["Final Portfolio Value"] ?? "—"}`;
-
-          // Top-5 막대 차트
-          let t5 = [], w5 = [];
-          if (rows.length) {
-            const topList  = (rows[0].top_5_portfolio || "").split(",").map(s=>s.trim()).filter(Boolean);
-            const pr = sanitizePortfolioString(rows[0].portfolio_ratio);
-            // 포맷: {'top_5':[...], 'least_5':[...]} 형태 가정
-            if (pr && Array.isArray(pr.top_5) && pr.top_5.length === topList.length) {
-              t5 = topList;
-              w5 = pr.top_5;
-            } else {
-              // 백업: 균등 가중 추정
-              t5 = topList;
-              w5 = topList.map(()=>1/topList.length);
-            }
-          }
-          renderPortfolioBars("portfolio_bars", t5, w5, "Weight");
-
-          // 모델별 성과 라인 차트
-          const sameMarket = resultRows.filter(r => r.market === (rows[0]?.market ?? rows[0]?.market));
-          renderPortfolioValue("portfolio_value", sameMarket.length ? sameMarket : resultRows);
-        }
-        updateResultSection();
-        document.getElementById("update_result_btn").addEventListener("click", updateResultSection);
-
-        // TEST (지수)
-        const indexSel = document.getElementById("index_market_select");
-        const indexMarkets = unique(testRows.map(r=>r.market).filter(Boolean)).sort();
-        indexMarkets.forEach(m=>{ const o=document.createElement("option"); o.value=m; o.textContent=m; indexSel.appendChild(o); });
-        renderIndexSeries("index_series", testRows, indexMarkets[0]);
-        document.getElementById("update_index_btn").addEventListener("click", ()=>{
-          renderIndexSeries("index_series", testRows, indexSel.value);
-        });
-
-      } catch (e) {
-        console.error(e);
-        const err = document.createElement("div");
-        err.style.color = "crimson";
-        err.style.marginTop = "12px";
-        err.textContent = "데이터를 불러오는 중 오류가 발생했습니다: " + e.message;
-        document.body.appendChild(err);
-      }
-    });
-  </script>
+  <script src="assets/js/advanced-features.js"></script>
+  <script src="assets/js/dashboard.js"></script>
 </body>
 </html>

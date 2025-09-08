@@ -1,0 +1,24 @@
+# GitHub Pages Academic Configuration
+title: "Deep Aries - Academic Research Demo"
+description: "Academic research demonstration of AI-powered financial market analysis and portfolio optimization"
+baseurl: ""
+url: "https://deep-aries.github.io"
+
+# GitHub Pages 설정
+plugins:
+  - jekyll-sitemap
+  - jekyll-feed
+
+# 빌드 설정
+exclude:
+  - README.md
+  - .gitignore
+  - Gemfile
+  - Gemfile.lock
+
+# 성능 최적화
+compress_html:
+  clippings: all
+  comments: all
+  endings: all
+  startings: [html, head, body]
