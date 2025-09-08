@@ -362,6 +362,82 @@ footer {
   font-weight: 600;
 }
 
+.publication-details {
+  background: #f8fafc;
+  padding: 20px;
+  border-radius: 8px;
+  margin: 16px 0;
+  border-left: 4px solid var(--primary);
+}
+
+.publication-details p {
+  margin: 8px 0;
+  font-size: 14px;
+}
+
+.research-links {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+.research-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 16px;
+  background: var(--primary);
+  color: white;
+  text-decoration: none;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.research-link:hover {
+  background: var(--primary-dark);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(37, 99, 235, 0.3);
+}
+
+.conference-badge {
+  text-align: center;
+  margin: 16px 0;
+}
+
+.accepted-badge {
+  display: inline-block;
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+.demo-description {
+  background: #f1f5f9;
+  padding: 16px;
+  border-radius: 8px;
+  margin: 16px 0;
+  border-left: 4px solid var(--accent);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.demo-description p {
+  margin: 0;
+}
+
 /* Tab Navigation */
 .tabs {
   display: flex;

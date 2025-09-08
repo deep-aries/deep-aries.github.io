@@ -1,6 +1,6 @@
 # GitHub Pages Academic Configuration
-title: "Deep Aries - Academic Research Demo"
-description: "Academic research demonstration of AI-powered financial market analysis and portfolio optimization"
+title: "DeepAries - Adaptive Portfolio Rebalancing Demo"
+description: "Interactive demo of DeepAries: Adaptive Rebalancing Interval Selection for Enhanced Portfolio Selection (CIKM 2025)"
 baseurl: ""
 url: "https://deep-aries.github.io"
 

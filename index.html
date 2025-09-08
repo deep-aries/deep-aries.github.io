@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Deep Aries - Academic Research Demo</title>
-  <meta name="description" content="Academic research demonstration of AI-powered stock market analysis and portfolio optimization algorithms">
-  <meta name="keywords" content="academic research, stock analysis, AI, portfolio optimization, deep learning, financial modeling">
-  <meta name="author" content="Deep Aries Research Team">
+  <title>DeepAries - Adaptive Portfolio Rebalancing Demo</title>
+  <meta name="description" content="Interactive demo of DeepAries: Adaptive Rebalancing Interval Selection for Enhanced Portfolio Selection (CIKM 2025)">
+  <meta name="keywords" content="portfolio management, adaptive rebalancing, reinforcement learning, financial AI, CIKM 2025, portfolio optimization">
+  <meta name="author" content="Jinkyu Kim, Hyunjung Yi, Mogan Gim, Donghee Choi, Jaewoo Kang">
   <link rel="stylesheet" href="assets/css/style.css">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#2563eb">
@@ -21,41 +21,59 @@
 </head>
 <body>
   <header>
-    <h1 style="margin:0;">🔬 Deep Aries Research</h1>
-    <span class="badge">Academic Demo</span>
+    <h1 style="margin:0;">🔬 DeepAries Research</h1>
+    <span class="badge">CIKM 2025 Accepted</span>
   </header>
   
   <!-- Academic Introduction -->
   <section class="academic-intro">
     <h2>Research Overview</h2>
     <p class="research-description">
-      This demonstration showcases our academic research on <strong>AI-powered financial market analysis and portfolio optimization</strong>. 
-      Our work presents novel approaches to stock market prediction using deep learning techniques and advanced portfolio management algorithms.
+      This demonstration showcases <strong>DeepAries</strong>—our novel reinforcement learning framework that dynamically adjusts rebalancing intervals based on market conditions. 
+      Our work presents adaptive portfolio management using deep reinforcement learning techniques for enhanced portfolio selection.
     </p>
     
     <div class="research-highlights">
       <div class="highlight-card">
-        <h3>📊 Novel AI Models</h3>
-        <p>Advanced deep learning architectures for financial time series prediction and market analysis.</p>
+        <h3>🔄 Adaptive Rebalancing</h3>
+        <p>Dynamic rebalancing interval selection based on market conditions using reinforcement learning.</p>
       </div>
       <div class="highlight-card">
-        <h3>🎯 Portfolio Optimization</h3>
-        <p>Enhanced Markowitz optimization with risk-adjusted returns and dynamic rebalancing strategies.</p>
+        <h3>💼 Portfolio Optimization</h3>
+        <p>AI-driven portfolio allocation and performance optimization with enhanced selection strategies.</p>
       </div>
       <div class="highlight-card">
         <h3>⚠️ Risk Management</h3>
         <p>Comprehensive risk assessment using VaR, Expected Shortfall, and stress testing methodologies.</p>
       </div>
       <div class="highlight-card">
-        <h3>📈 Sentiment Analysis</h3>
-        <p>Multi-modal sentiment analysis combining news, social media, and market data for enhanced predictions.</p>
+        <h3>🤖 Reinforcement Learning</h3>
+        <p>Deep RL framework for financial decision making and adaptive portfolio management.</p>
       </div>
     </div>
     
     <div class="paper-info">
       <h3>📄 Related Publications</h3>
-      <p><em>This demo accompanies our research paper: "Deep Learning Approaches for Financial Market Analysis and Portfolio Optimization"</em></p>
-      <p><strong>Authors:</strong> Deep Aries Research Team | <strong>Institution:</strong> [Your Institution] | <strong>Year:</strong> 2025</p>
+      <p><em>This demo accompanies our research paper:</em></p>
+      <p><strong>"DeepAries: Adaptive Rebalancing Interval Selection for Enhanced Portfolio Selection"</strong></p>
+      <div class="conference-badge">
+        <span class="accepted-badge">✅ Accepted at CIKM 2025</span>
+      </div>
+      <div class="publication-details">
+        <p><strong>Authors:</strong> Jinkyu Kim, Hyunjung Yi, Mogan Gim, Donghee Choi, Jaewoo Kang</p>
+        <p><strong>Conference:</strong> CIKM 2025 (30th ACM International Conference on Information and Knowledge Management)</p>
+        <p><strong>Year:</strong> 2025</p>
+        <p><strong>Keywords:</strong> Portfolio Management, Adaptive Rebalancing Interval Selection, Artificial Intelligence in Finance, Deep Reinforcement Learning</p>
+      </div>
+      <div class="demo-description">
+        <p><strong>Demo Description:</strong> In this interactive demo, we showcase DeepAries—our novel reinforcement learning framework that dynamically adjusts rebalancing intervals based on market conditions. Evaluation begins on January 1, 2021, and data is continuously updated. The demo provides recommended portfolio allocation, performance comparisons (with both portfolio and benchmark index cumulative returns normalized over the selected period), adaptive rebalancing visualizations, and aggregated insights into rebalancing behavior.</p>
+      </div>
+      <div class="research-links">
+        <a href="#" class="research-link">📄 Paper</a>
+        <a href="#" class="research-link">📊 Dataset</a>
+        <a href="#" class="research-link">💻 Code Repository</a>
+        <a href="#" class="research-link">📈 Live Demo</a>
+      </div>
     </div>
   </section>
 
@@ -70,37 +88,37 @@
 
   <!-- Dashboard Tab -->
   <div class="tab-content active" id="dashboard">
-    <div class="grid">
+  <div class="grid">
       <!-- MARKET (Current Data) -->
-      <section class="card">
+    <section class="card">
         <h2>📈 Real-time Market Data</h2>
-        <div class="controls">
+      <div class="controls">
           <label>Select Tickers (Multiple Selection):</label>
-          <select id="market_ticker_select" multiple></select>
+        <select id="market_ticker_select" multiple></select>
           <button id="update_market_btn">Update</button>
           <button id="export_market_btn">📥 Export</button>
-        </div>
+      </div>
         <div class="chart-container">
-          <div id="timeseries"></div>
+      <div id="timeseries"></div>
         </div>
-      </section>
+    </section>
 
       <!-- MARKET_PAST (Historical Data) -->
-      <section class="card">
+    <section class="card">
         <h2>📉 Historical Market Data</h2>
-        <div class="controls">
+      <div class="controls">
           <label>Select Tickers (Multiple Selection):</label>
-          <select id="past_ticker_select" multiple></select>
+        <select id="past_ticker_select" multiple></select>
           <button id="update_past_btn">Update</button>
           <button id="export_past_btn">📥 Export</button>
-        </div>
+      </div>
         <div class="chart-container">
-          <div id="past_timeseries"></div>
+      <div id="past_timeseries"></div>
         </div>
-      </section>
+    </section>
 
       <!-- FUTURE (Heatmap) -->
-      <section class="card">
+    <section class="card">
         <h2>🔮 AI Prediction Heatmap</h2>
         <p class="note">Rows: Tickers, Columns: Dates, Values: AI Model Predictions</p>
         <div class="controls">
@@ -108,49 +126,49 @@
           <button id="fullscreen_heatmap_btn">🔍 Fullscreen</button>
         </div>
         <div class="chart-container">
-          <div id="heatmap"></div>
+      <div id="heatmap"></div>
         </div>
-      </section>
+    </section>
 
       <!-- RESULT (Portfolio/Model Performance) -->
-      <section class="card">
+    <section class="card">
         <h2>💼 Portfolio & Model Performance</h2>
-        <div class="controls">
-          <label>Model:</label>
-          <select id="model_select"></select>
-          <label>Date:</label>
-          <select id="date_select"></select>
+      <div class="controls">
+        <label>Model:</label>
+        <select id="model_select"></select>
+        <label>Date:</label>
+        <select id="date_select"></select>
           <button id="update_result_btn">Update</button>
           <button id="export_result_btn">📥 Export</button>
-        </div>
+      </div>
 
-        <div class="row">
-          <div class="half">
+      <div class="row">
+        <div class="half">
             <h3 style="margin:0 0 6px;">🏆 Top-5 Weights</h3>
-            <div id="portfolio_bars"></div>
-          </div>
-          <div class="half">
-            <h3 style="margin:0 0 6px;">📊 Portfolio Value by Model</h3>
-            <div id="portfolio_value"></div>
-          </div>
+          <div id="portfolio_bars"></div>
         </div>
+        <div class="half">
+            <h3 style="margin:0 0 6px;">📊 Portfolio Value by Model</h3>
+          <div id="portfolio_value"></div>
+        </div>
+      </div>
 
-        <p class="note" id="portfolio_meta"></p>
-      </section>
+      <p class="note" id="portfolio_meta"></p>
+    </section>
 
       <!-- TEST (Index Time Series) -->
-      <section class="card">
+    <section class="card">
         <h2>📊 Index Time Series</h2>
-        <div class="controls">
+      <div class="controls">
           <label>Market (e.g., dj30):</label>
-          <select id="index_market_select"></select>
+        <select id="index_market_select"></select>
           <button id="update_index_btn">Update</button>
           <button id="export_index_btn">📥 Export</button>
-        </div>
+      </div>
         <div class="chart-container">
-          <div id="index_series"></div>
+      <div id="index_series"></div>
         </div>
-      </section>
+    </section>
     </div>
   </div>
 
@@ -434,7 +452,7 @@
   </div>
 
   <footer>
-    <p>© 2025 Deep Aries Research • Academic Research Demo • <a href="https://github.com/deep-aries/deep-aries.github.io" target="_blank">GitHub Repository</a></p>
+    <p>© 2025 DeepAries Research • CIKM 2025 Accepted • <a href="https://github.com/deep-aries/deep-aries.github.io" target="_blank">GitHub Repository</a></p>
   </footer>
 
   <script src="assets/js/advanced-features.js"></script>
