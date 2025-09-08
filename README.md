@@ -92,6 +92,9 @@ deep-aries.github.io/
    - Settings → Pages → Source: Deploy from a branch
    - Branch: main, Folder: / (root)
 
+
+
+
 2. **Automatic Deployment**:
    - Push to main branch triggers automatic deployment
    - Deployment status available in Actions tab
