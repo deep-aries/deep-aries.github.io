@@ -25,7 +25,6 @@ class StockDashboard {
       this.setupEventListeners();
       this.setupTabNavigation();
       this.renderInitialCharts();
-      this.loadNewsFeed();
     } catch (error) {
       this.showError('Error loading data: ' + error.message);
     }
@@ -146,14 +145,6 @@ class StockDashboard {
       this.runStressTest();
     });
 
-    // News tab events
-    document.getElementById('update_news_btn').addEventListener('click', () => {
-      this.updateNewsSentiment();
-    });
-
-    document.getElementById('update_social_btn').addEventListener('click', () => {
-      this.updateSocialSentiment();
-    });
   }
 
   renderInitialCharts() {
@@ -178,6 +169,11 @@ class StockDashboard {
     const indexMarkets = this.unique(this.data.test.map(r => r.market).filter(Boolean)).sort();
     this.populateSelect('index_market_select', indexMarkets);
     this.renderIndexSeries('index_series', this.data.test, indexMarkets[0]);
+
+    // Phase 1: DeepAries Core Features
+    this.renderRebalancingTimeline();
+    this.renderPerformanceComparison();
+    this.renderRebalancingFrequency();
   }
 
   groupMarket(rows) {
@@ -761,6 +757,245 @@ class StockDashboard {
       xaxis: { title: 'Time' },
       yaxis: { title: 'Portfolio Value' }
     });
+  }
+
+  // ===== Phase 1: DeepAries Core Features =====
+
+  /**
+   * Render rebalancing timeline showing when rebalancing events occurred
+   */
+  renderRebalancingTimeline() {
+    if (!this.data.result || !this.data.test) return;
+
+    // Get rebalancing dates from result data
+    const rebalancingDates = this.unique(this.data.result.map(r => r.date).filter(Boolean))
+      .sort((a, b) => new Date(a) - new Date(b));
+
+    // Get market volatility data for context
+    const marketData = this.data.test.filter(r => r.market === 'dj30');
+    const volatilityData = this.calculateMarketVolatility(marketData);
+
+    // Create rebalancing events
+    const rebalancingEvents = rebalancingDates.map(date => ({
+      x: date,
+      y: 1,
+      text: `Rebalancing Event<br>Date: ${date}`,
+      marker: { color: '#ef4444', size: 10 }
+    }));
+
+    // Create volatility trace
+    const volatilityTrace = {
+      x: volatilityData.dates,
+      y: volatilityData.volatility,
+      type: 'scatter',
+      mode: 'lines',
+      name: 'Market Volatility (30-day)',
+      yaxis: 'y2',
+      line: { color: '#6b7280', width: 1 }
+    };
+
+    // Create rebalancing events trace
+    const rebalancingTrace = {
+      x: rebalancingEvents.map(e => e.x),
+      y: rebalancingEvents.map(e => e.y),
+      type: 'scatter',
+      mode: 'markers',
+      name: 'Rebalancing Events',
+      yaxis: 'y',
+      marker: { color: '#ef4444', size: 8 },
+      text: rebalancingEvents.map(e => e.text),
+      hovertemplate: '%{text}<extra></extra>'
+    };
+
+    const layout = {
+      title: '🔄 Adaptive Rebalancing Timeline',
+      xaxis: { title: 'Date' },
+      yaxis: { 
+        title: 'Rebalancing Events',
+        range: [0.5, 1.5],
+        showticklabels: false
+      },
+      yaxis2: {
+        title: 'Market Volatility',
+        overlaying: 'y',
+        side: 'right',
+        range: [0, Math.max(...volatilityData.volatility) * 1.1]
+      },
+      margin: { t: 40, r: 60, b: 40, l: 50 },
+      hovermode: 'x unified',
+      showlegend: true
+    };
+
+    // Create container if it doesn't exist
+    this.createChartContainer('rebalancing_timeline');
+    Plotly.newPlot('rebalancing_timeline', [volatilityTrace, rebalancingTrace], layout, { responsive: true });
+  }
+
+  /**
+   * Render portfolio vs benchmark performance comparison
+   */
+  renderPerformanceComparison() {
+    if (!this.data.result || !this.data.test) return;
+
+    // Get portfolio values over time
+    const portfolioData = this.data.result
+      .filter(r => r.date && r["Final Portfolio Value"] != null)
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    // Get benchmark data (DJ30)
+    const benchmarkData = this.data.test
+      .filter(r => r.market === 'dj30' && r.date && r.close != null)
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    // Normalize both to starting value of 1
+    const normalizedPortfolio = this.normalizeToStartingValue(
+      portfolioData.map(r => ({ date: r.date, value: r["Final Portfolio Value"] }))
+    );
+
+    const normalizedBenchmark = this.normalizeToStartingValue(
+      benchmarkData.map(r => ({ date: r.date, value: r.close }))
+    );
+
+    // Create traces
+    const portfolioTrace = {
+      x: normalizedPortfolio.map(d => d.date),
+      y: normalizedPortfolio.map(d => d.normalizedValue),
+      type: 'scatter',
+      mode: 'lines',
+      name: 'DeepAries Portfolio',
+      line: { color: '#2563eb', width: 3 }
+    };
+
+    const benchmarkTrace = {
+      x: normalizedBenchmark.map(d => d.date),
+      y: normalizedBenchmark.map(d => d.normalizedValue),
+      type: 'scatter',
+      mode: 'lines',
+      name: 'DJ30 Benchmark',
+      line: { color: '#6b7280', width: 2, dash: 'dash' }
+    };
+
+    const layout = {
+      title: '📈 Portfolio vs Benchmark Performance (Normalized)',
+      xaxis: { title: 'Date' },
+      yaxis: { 
+        title: 'Cumulative Return (Normalized)',
+        tickformat: '.2f'
+      },
+      margin: { t: 40, r: 10, b: 40, l: 50 },
+      hovermode: 'x unified',
+      showlegend: true,
+      annotations: [{
+        x: 0.02,
+        y: 0.98,
+        xref: 'paper',
+        yref: 'paper',
+        text: 'Starting Value: 1.00',
+        showarrow: false,
+        font: { size: 12, color: '#6b7280' }
+      }]
+    };
+
+    this.createChartContainer('performance_comparison');
+    Plotly.newPlot('performance_comparison', [portfolioTrace, benchmarkTrace], layout, { responsive: true });
+  }
+
+  /**
+   * Render rebalancing frequency analysis
+   */
+  renderRebalancingFrequency() {
+    if (!this.data.result) return;
+
+    // Calculate rebalancing intervals
+    const rebalancingDates = this.unique(this.data.result.map(r => r.date).filter(Boolean))
+      .sort((a, b) => new Date(a) - new Date(b));
+
+    const intervals = [];
+    for (let i = 1; i < rebalancingDates.length; i++) {
+      const prevDate = new Date(rebalancingDates[i-1]);
+      const currDate = new Date(rebalancingDates[i]);
+      const daysDiff = Math.ceil((currDate - prevDate) / (1000 * 60 * 60 * 24));
+      intervals.push(daysDiff);
+    }
+
+    // Create histogram
+    const trace = {
+      x: intervals,
+      type: 'histogram',
+      name: 'Rebalancing Intervals',
+      marker: { color: '#10b981' },
+      nbinsx: Math.min(20, Math.ceil(Math.sqrt(intervals.length)))
+    };
+
+    const layout = {
+      title: '📊 Rebalancing Frequency Distribution',
+      xaxis: { title: 'Days Between Rebalancing' },
+      yaxis: { title: 'Frequency' },
+      margin: { t: 40, r: 10, b: 40, l: 50 },
+      showlegend: false,
+      annotations: [{
+        x: 0.02,
+        y: 0.98,
+        xref: 'paper',
+        yref: 'paper',
+        text: `Average Interval: ${Math.round(intervals.reduce((a, b) => a + b, 0) / intervals.length)} days`,
+        showarrow: false,
+        font: { size: 12, color: '#6b7280' }
+      }]
+    };
+
+    this.createChartContainer('rebalancing_frequency');
+    Plotly.newPlot('rebalancing_frequency', [trace], layout, { responsive: true });
+  }
+
+  /**
+   * Calculate market volatility using rolling window
+   */
+  calculateMarketVolatility(marketData, window = 30) {
+    const prices = marketData.map(d => d.close);
+    const dates = marketData.map(d => d.date);
+    const volatility = [];
+
+    for (let i = window; i < prices.length; i++) {
+      const windowPrices = prices.slice(i - window, i);
+      const returns = [];
+      
+      for (let j = 1; j < windowPrices.length; j++) {
+        returns.push((windowPrices[j] - windowPrices[j-1]) / windowPrices[j-1]);
+      }
+      
+      const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
+      const variance = returns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / returns.length;
+      const vol = Math.sqrt(variance) * Math.sqrt(252); // Annualized
+      
+      volatility.push(vol);
+    }
+
+    return {
+      dates: dates.slice(window),
+      volatility: volatility
+    };
+  }
+
+  /**
+   * Normalize data to starting value of 1
+   */
+  normalizeToStartingValue(data) {
+    if (!data.length) return [];
+    
+    const firstValue = data[0].value;
+    return data.map(d => ({
+      date: d.date,
+      normalizedValue: d.value / firstValue
+    }));
+  }
+
+  /**
+   * Create chart container if it doesn't exist
+   */
+  createChartContainer(containerId) {
+    // Container already exists in HTML, no need to create
+    return;
   }
 
 }
