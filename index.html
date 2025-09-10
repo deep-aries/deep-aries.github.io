@@ -79,40 +79,42 @@
 
   <!-- Navigation Tabs -->
   <nav class="tabs">
-    <button class="tab-button active" data-tab="dashboard">📊 Market Data</button>
-    <button class="tab-button" data-tab="analysis">🔍 Technical Analysis</button>
-    <button class="tab-button" data-tab="portfolio">💼 Portfolio Optimization</button>
-    <button class="tab-button" data-tab="risk">⚠️ Risk Management</button>
+    <button class="tab-button active" data-tab="portfolio" onclick="showTab('portfolio')">💼 Portfolio Optimization</button>
+    <button class="tab-button" data-tab="dashboard" onclick="showTab('dashboard')">📊 Market Data</button>
+    <button class="tab-button" data-tab="analysis" onclick="showTab('analysis')">🔍 Technical Analysis</button>
+    <button class="tab-button" data-tab="risk" onclick="showTab('risk')">⚠️ Risk Management</button>
   </nav>
 
   <!-- Dashboard Tab -->
-  <div class="tab-content active" id="dashboard">
+  <div class="tab-content" id="dashboard">
   <div class="grid">
-      <!-- MARKET (Current Data) -->
+      <!-- MARKET DATA (Combined) -->
     <section class="card">
-        <h2>📈 Real-time Market Data</h2>
+        <h2>📈 Market Data</h2>
+        <p class="note">Historical market data with multiple ticker selection and default visualization</p>
       <div class="controls">
-          <label>Select Tickers (Multiple Selection):</label>
-        <select id="market_ticker_select" multiple></select>
-          <button id="update_market_btn">Update</button>
-          <button id="export_market_btn">📥 Export</button>
+          <label>🌐 Select Market:</label>
+        <select id="market_market_select"></select>
+          <label>📊 Select Tickers (Multiple Selection):</label>
+        <select id="market_ticker_select" multiple size="5"></select>
+          <label>📅 Date Range:</label>
+          <select id="date_range_select">
+            <option value="all">All Time</option>
+            <option value="1year">Last 1 Year</option>
+            <option value="6months">Last 6 Months</option>
+            <option value="3months">Last 3 Months</option>
+            <option value="1month">Last 1 Month</option>
+            <option value="custom">Custom Range</option>
+          </select>
+          <div id="custom_date_range" style="display: none;">
+            <input type="date" id="start_date" placeholder="시작 날짜" />
+            <input type="date" id="end_date" placeholder="종료 날짜" />
+          </div>
+          <button id="update_market_btn">🔄 Update</button>
+          
       </div>
         <div class="chart-container">
       <div id="timeseries"></div>
-        </div>
-    </section>
-
-      <!-- MARKET_PAST (Historical Data) -->
-    <section class="card">
-        <h2>📉 Historical Market Data</h2>
-      <div class="controls">
-          <label>Select Tickers (Multiple Selection):</label>
-        <select id="past_ticker_select" multiple></select>
-          <button id="update_past_btn">Update</button>
-          <button id="export_past_btn">📥 Export</button>
-      </div>
-        <div class="chart-container">
-      <div id="past_timeseries"></div>
         </div>
     </section>
 
@@ -120,40 +122,15 @@
     <section class="card">
         <h2>🔮 AI Prediction Heatmap</h2>
         <p class="note">Rows: Tickers, Columns: Dates, Values: AI Model Predictions</p>
-        <div class="controls">
-          <button id="export_heatmap_btn">📥 Export</button>
+      <div class="controls">
+          
           <button id="fullscreen_heatmap_btn">🔍 Fullscreen</button>
         </div>
         <div class="chart-container">
       <div id="heatmap"></div>
-        </div>
+      </div>
     </section>
 
-      <!-- RESULT (Portfolio/Model Performance) -->
-    <section class="card">
-        <h2>💼 Portfolio & Model Performance</h2>
-      <div class="controls">
-        <label>Model:</label>
-        <select id="model_select"></select>
-        <label>Date:</label>
-        <select id="date_select"></select>
-          <button id="update_result_btn">Update</button>
-          <button id="export_result_btn">📥 Export</button>
-      </div>
-
-      <div class="row">
-        <div class="half">
-            <h3 style="margin:0 0 6px;">🏆 Top-5 Weights</h3>
-          <div id="portfolio_bars"></div>
-        </div>
-        <div class="half">
-            <h3 style="margin:0 0 6px;">📊 Portfolio Value by Model</h3>
-          <div id="portfolio_value"></div>
-        </div>
-      </div>
-
-      <p class="note" id="portfolio_meta"></p>
-    </section>
 
       <!-- TEST (Index Time Series) -->
     <section class="card">
@@ -162,47 +139,27 @@
           <label>Market (e.g., dj30):</label>
         <select id="index_market_select"></select>
           <button id="update_index_btn">Update</button>
-          <button id="export_index_btn">📥 Export</button>
+          
       </div>
         <div class="chart-container">
       <div id="index_series"></div>
         </div>
     </section>
 
-    <!-- DeepAries Core Features Section -->
-    <section class="card deeparies-section">
-      <h2>🔬 DeepAries Core Features</h2>
-      <p class="note">Interactive demonstration of adaptive rebalancing and portfolio performance analysis</p>
-    </section>
-
-    <!-- Adaptive Rebalancing Timeline -->
+    <!-- Debug Info -->
     <section class="card">
-      <h2>🔄 Adaptive Rebalancing Timeline</h2>
-      <p class="note">Shows when rebalancing events occurred and their relationship to market volatility</p>
-      <div class="chart-container">
-        <div id="rebalancing_timeline"></div>
+      <h2>🔧 Debug Information</h2>
+      <p class="note">System status and debugging information</p>
+      <div class="controls">
+        <button id="test_render_btn" style="background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">🧪 Test Render</button>
+        <button id="force_render_btn" style="background: #28a745; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">🚀 Force Render</button>
       </div>
-    </section>
-
-    <!-- Portfolio vs Benchmark Performance -->
-    <section class="card">
-      <h2>📈 Portfolio vs Benchmark Performance</h2>
-      <p class="note">Normalized cumulative returns comparison between DeepAries portfolio and DJ30 benchmark</p>
-      <div class="chart-container">
-        <div id="performance_comparison"></div>
-      </div>
-    </section>
-
-    <!-- Rebalancing Frequency Analysis -->
-    <section class="card">
-      <h2>📊 Rebalancing Frequency Analysis</h2>
-      <p class="note">Distribution of rebalancing intervals showing adaptive behavior</p>
-      <div class="chart-container">
-        <div id="rebalancing_frequency"></div>
+      <div id="debug-info" style="background: #f0f0f0; padding: 10px; margin: 10px 0; border-radius: 5px; font-family: monospace; font-size: 12px;">
+        <div>🔄 Loading market data...</div>
       </div>
     </section>
     </div>
-  </div>
+      </div>
 
   <!-- Analysis Tab -->
   <div class="tab-content" id="analysis">
@@ -226,12 +183,12 @@
         <div class="chart-container">
           <div id="technical_chart"></div>
         </div>
-      </section>
+    </section>
 
       <!-- Candlestick Chart -->
-      <section class="card">
+    <section class="card">
         <h2>🕯️ Candlestick Chart</h2>
-        <div class="controls">
+      <div class="controls">
           <label>Ticker:</label>
           <select id="candle_ticker_select"></select>
           <label>Period:</label>
@@ -245,11 +202,11 @@
         </div>
         <div class="chart-container">
           <div id="candlestick_chart"></div>
-        </div>
-      </section>
+      </div>
+    </section>
 
       <!-- Volume Analysis -->
-      <section class="card">
+    <section class="card">
         <h2>📊 Volume Analysis</h2>
         <div class="controls">
           <label>Ticker:</label>
@@ -259,7 +216,7 @@
         <div class="chart-container">
           <div id="volume_chart"></div>
         </div>
-      </section>
+    </section>
 
       <!-- Correlation Matrix -->
       <section class="card">
@@ -272,83 +229,154 @@
         <div class="chart-container">
           <div id="correlation_matrix"></div>
         </div>
-      </section>
-    </div>
+    </section>
+        </div>
   </div>
 
   <!-- Portfolio Tab -->
-  <div class="tab-content" id="portfolio">
+  <div class="tab-content active" id="portfolio">
     <div class="grid">
-      <!-- Portfolio Optimization -->
-      <section class="card">
-        <h2>🎯 Portfolio Optimization</h2>
-        <div class="controls">
-          <label>Target Return:</label>
-          <input type="number" id="target_return" step="0.01" value="0.1" min="0" max="1">
-          <label>Risk Tolerance:</label>
-          <select id="risk_tolerance">
-            <option value="low">Low</option>
-            <option value="medium" selected>Medium</option>
-            <option value="high">High</option>
-          </select>
-          <button id="optimize_portfolio_btn">Optimize</button>
-        </div>
-        <div class="chart-container">
-          <div id="portfolio_optimization"></div>
-        </div>
+      <!-- DeepAries Header Panel (top inside Portfolio tab) -->
+      <section class="card deeparies-section">
+        <h2>🔬 DeepAries Adaptive Rebalancing</h2>
+        <p class="note">Interactive demonstration of adaptive rebalancing and portfolio performance analysis</p>
       </section>
+      <!-- Portfolio & Model Performance -->
+    <section class="card">
+        <h2>💼 Portfolio & Model Performance</h2>
+        <p class="note">Select Market, Model, and Period to analyze portfolio allocation and performance</p>
+      <div class="controls">
+        <label>Market:</label>
+        <select id="portfolio_market_select"></select>
+        <label>Model:</label>
+        <select id="model_select"></select>
+        <label>Start:</label>
+        <input type="date" id="portfolio_start_date" />
+        <label>End:</label>
+        <input type="date" id="portfolio_end_date" />
+          <button id="update_result_btn">Update</button>
+          
+      </div>
+
+      <div class="chart-container">
+        <h3 style="margin:0 0 6px;">📊 Portfolio Value vs Market Index</h3>
+        <div id="portfolio_value"></div>
+      </div>
+
+      <p class="note" id="portfolio_meta"></p>
+    </section>
+
+    <!-- Latest Allocation at End Date -->
+    <section class="card">
+      <h2>🧩 Latest Allocation</h2>
+      <p class="note" id="allocation_title">Allocation on —</p>
+      <p class="note" id="next_rebalancing_note"></p>
+      <div class="chart-container">
+        <div id="allocation_pie"></div>
+      </div>
+    </section>
+
+      
 
       <!-- Portfolio Performance -->
       <section class="card">
         <h2>📊 Portfolio Performance</h2>
         <div class="performance-metrics">
-          <div class="metric">
+          <div class="metric" title="Cumulative portfolio return over the selected period." data-tip="Cumulative portfolio return over the selected period.">
             <span class="metric-label">Total Return</span>
             <span class="metric-value" id="total_return">-</span>
           </div>
-          <div class="metric">
+          <div class="metric" title="Annualized mean daily return divided by annualized volatility (risk‑free = 0)." data-tip="Annualized mean daily return divided by annualized volatility (risk‑free = 0).">
             <span class="metric-label">Sharpe Ratio</span>
             <span class="metric-value" id="sharpe_ratio">-</span>
           </div>
-          <div class="metric">
+          <div class="metric" title="Largest peak‑to‑trough decline of portfolio value in the period." data-tip="Largest peak‑to‑trough decline of portfolio value in the period.">
             <span class="metric-label">Max Drawdown</span>
             <span class="metric-value" id="max_drawdown">-</span>
           </div>
-          <div class="metric">
+          <div class="metric" title="Annualized standard deviation of daily returns." data-tip="Annualized standard deviation of daily returns.">
             <span class="metric-label">Volatility</span>
             <span class="metric-value" id="volatility">-</span>
           </div>
         </div>
+        <div class="performance-metrics" id="performance_kpis_2">
+          <div class="metric" title="Compound annual growth rate implied by start and end values in the selected window." data-tip="Compound annual growth rate implied by start and end values in the selected window.">
+            <span class="metric-label">CAGR</span>
+            <span class="metric-value" id="cagr">-</span>
+          </div>
+          <div class="metric" title="Risk‑adjusted return using downside volatility only." data-tip="Risk‑adjusted return using downside volatility only.">
+            <span class="metric-label">Sortino Ratio</span>
+            <span class="metric-value" id="sortino_ratio">-</span>
+          </div>
+          <div class="metric" title="Annualized volatility of active returns (portfolio minus benchmark)." data-tip="Annualized volatility of active returns (portfolio minus benchmark).">
+            <span class="metric-label">Tracking Error</span>
+            <span class="metric-value" id="tracking_error">-</span>
+          </div>
+          <div class="metric" title="Excess return over benchmark divided by tracking error." data-tip="Excess return over benchmark divided by tracking error.">
+            <span class="metric-label">Information Ratio</span>
+            <span class="metric-value" id="information_ratio">-</span>
+          </div>
+          <div class="metric" title="Intercept from regression of portfolio vs benchmark daily returns, annualized." data-tip="Intercept from regression of portfolio vs benchmark daily returns, annualized.">
+            <span class="metric-label">Alpha (annual)</span>
+            <span class="metric-value" id="alpha_metric">-</span>
+          </div>
+          <div class="metric" title="Slope from regression of portfolio vs benchmark daily returns." data-tip="Slope from regression of portfolio vs benchmark daily returns.">
+            <span class="metric-label">Beta</span>
+            <span class="metric-value" id="beta_metric">-</span>
+          </div>
+          <div class="metric" title="Fraction of variance in portfolio returns explained by the benchmark (0–1)." data-tip="Fraction of variance in portfolio returns explained by the benchmark (0–1).">
+            <span class="metric-label">R²</span>
+            <span class="metric-value" id="r2_metric">-</span>
+          </div>
+        </div>
+        <!-- removed unused large chart to reduce blank space -->
+        <div id="performance_summary" class="summary-grid"></div>
+        <p class="note" id="performance_comment"></p>
+      </section>
+
+      <!-- Adaptive Rebalancing Results -->
+      <section class="card">
+        <h2>🔄 Adaptive Rebalancing Results</h2>
+        <p class="note">Shows monthly rebalancing allocations (first trading day each month) for the selected market and model. X‑axis uses 6‑month ticks.</p>
         <div class="chart-container">
-          <div id="portfolio_performance"></div>
+          <div id="rebalancing_allocations"></div>
         </div>
       </section>
 
-      <!-- Asset Allocation -->
+      
+
+      
+      <!-- Move Adaptive Rebalancing section to top of portfolio grid -->
+      <!-- Adaptive Rebalancing Timeline -->
       <section class="card">
-        <h2>🥧 Asset Allocation</h2>
+        <h2>🔄 Adaptive Rebalancing Timeline</h2>
+        <p class="note">Shows when rebalancing events occurred and their relationship to market volatility</p>
         <div class="chart-container">
-          <div id="asset_allocation"></div>
+          <div id="rebalancing_timeline"></div>
         </div>
       </section>
 
-      <!-- Rebalancing -->
+      
+
+      <!-- Rebalancing Frequency Analysis -->
       <section class="card">
-        <h2>⚖️ Rebalancing</h2>
-        <div class="controls">
-          <label>Rebalancing Frequency:</label>
-          <select id="rebalance_frequency">
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="monthly" selected>Monthly</option>
-            <option value="quarterly">Quarterly</option>
-          </select>
-          <button id="rebalance_btn">Execute Rebalancing</button>
-        </div>
+        <h2>📊 Rebalancing Frequency Analysis</h2>
+        <p class="note">Distribution of rebalancing intervals showing adaptive behavior</p>
         <div class="chart-container">
-          <div id="rebalancing_chart"></div>
+          <div id="rebalancing_frequency"></div>
         </div>
       </section>
+
+      <!-- Market Condition Detection -->
+      <section class="card">
+        <h2>🔍 Market Condition Detection</h2>
+        <p class="note">Shows market volatility, trends, and when rebalancing events occurred in relation to market conditions</p>
+        <div class="chart-container">
+          <div id="market_condition_detection"></div>
+        </div>
+      </section>
+
+      
     </div>
   </div>
 
@@ -389,9 +417,9 @@
       </section>
 
       <!-- Stress Testing -->
-      <section class="card">
+    <section class="card">
         <h2>🌪️ Stress Testing</h2>
-        <div class="controls">
+      <div class="controls">
           <label>Scenario:</label>
           <select id="stress_scenario">
             <option value="market_crash">Market Crash (-20%)</option>
@@ -431,7 +459,43 @@
           <div id="risk_metrics_chart"></div>
         </div>
       </section>
-    </div>
+
+      <!-- Portfolio Risk Analysis -->
+      <section class="card">
+        <h2>📈 Portfolio Risk Analysis</h2>
+        <p class="note">Comprehensive risk analysis of DeepAries portfolio performance</p>
+        <div class="chart-container">
+          <div id="portfolio_risk_analysis"></div>
+        </div>
+      </section>
+
+      <!-- Drawdown Analysis -->
+      <section class="card">
+        <h2>📉 Drawdown Analysis</h2>
+        <p class="note">Maximum drawdown and recovery period analysis</p>
+        <div class="chart-container">
+          <div id="drawdown_analysis"></div>
+        </div>
+      </section>
+
+      <!-- Risk-Adjusted Returns -->
+      <section class="card">
+        <h2>⚖️ Risk-Adjusted Returns</h2>
+        <p class="note">Sharpe ratio, Sortino ratio, and other risk-adjusted performance metrics</p>
+        <div class="chart-container">
+          <div id="risk_adjusted_returns"></div>
+        </div>
+      </section>
+
+      <!-- Correlation Analysis -->
+      <section class="card">
+        <h2>🔗 Asset Correlation Analysis</h2>
+        <p class="note">Correlation matrix and diversification analysis</p>
+        <div class="chart-container">
+          <div id="correlation_analysis"></div>
+      </div>
+    </section>
+  </div>
   </div>
 
   <!-- News Tab -->
@@ -440,7 +504,104 @@
     <p>© 2025 DeepAries Research • CIKM 2025 Accepted • <a href="https://github.com/deep-aries/deep-aries.github.io" target="_blank">GitHub Repository</a></p>
   </footer>
 
-  <script src="assets/js/advanced-features.js"></script>
-  <script src="assets/js/dashboard.js"></script>
+  <script src="assets/js/advanced-features.js" onload="console.log('✅ Advanced features loaded')" onerror="console.error('❌ Advanced features failed to load')"></script>
+  <script src="assets/js/dashboard.js" onload="console.log('✅ Dashboard script loaded')" onerror="console.error('❌ Dashboard script failed to load')"></script>
+  
+  <!-- Simple Tab Switching -->
+  <script>
+    function showTab(tabName) {
+      console.log('🖱️ Switching to tab:', tabName);
+      
+      // Hide all tab contents
+      const tabContents = document.querySelectorAll('.tab-content');
+      console.log('Found tab contents:', tabContents.length);
+      tabContents.forEach(content => {
+        content.classList.remove('active');
+      });
+      
+      // Remove active class from all tab buttons
+      const tabButtons = document.querySelectorAll('.tab-button');
+      console.log('Found tab buttons:', tabButtons.length);
+      tabButtons.forEach(button => {
+        button.classList.remove('active');
+      });
+      
+      // Show selected tab content
+      const selectedTab = document.getElementById(tabName);
+      if (selectedTab) {
+        selectedTab.classList.add('active');
+        console.log('✅ Tab content shown:', tabName);
+      } else {
+        console.error('❌ Tab content not found:', tabName);
+      }
+      
+      // Add active class to clicked button
+      const clickedButton = document.querySelector(`[data-tab="${tabName}"]`);
+      if (clickedButton) {
+        clickedButton.classList.add('active');
+        console.log('✅ Tab button activated:', tabName);
+      } else {
+        console.error('❌ Tab button not found:', tabName);
+      }
+      
+      // Update debug info
+      const debugDiv = document.getElementById('debug-info');
+      if (debugDiv) {
+        debugDiv.innerHTML += `<div>${new Date().toLocaleTimeString()}: ✅ Switched to ${tabName}</div>`;
+      }
+    }
+    
+    // Initialize on page load
+    window.addEventListener('load', function() {
+      console.log('🚀 Page loaded, initializing...');
+      const debugDiv = document.getElementById('debug-info');
+      if (debugDiv) {
+        debugDiv.innerHTML += `<div>${new Date().toLocaleTimeString()}: 🚀 Page loaded successfully</div>`;
+      }
+      
+      // Test if Plotly is available
+      if (typeof Plotly !== 'undefined') {
+        console.log('✅ Plotly is available');
+        if (debugDiv) {
+          debugDiv.innerHTML += `<div>${new Date().toLocaleTimeString()}: ✅ Plotly is available</div>`;
+        }
+      } else {
+        console.error('❌ Plotly is not available');
+        if (debugDiv) {
+          debugDiv.innerHTML += `<div>${new Date().toLocaleTimeString()}: ❌ Plotly is not available</div>`;
+        }
+      }
+      
+      // Initialize Dashboard with delay to ensure scripts are loaded
+      setTimeout(() => {
+        try {
+          console.log('🚀 Initializing DeepAries Dashboard...');
+          if (debugDiv) {
+            debugDiv.innerHTML += `<div>${new Date().toLocaleTimeString()}: 🚀 Initializing DeepAries Dashboard...</div>`;
+          }
+          
+          // Check if class is available
+          if (typeof DeepAriesDashboard === 'undefined') {
+            console.error('❌ DeepAriesDashboard class not found');
+            if (debugDiv) {
+              debugDiv.innerHTML += `<div>${new Date().toLocaleTimeString()}: ❌ DeepAriesDashboard class not found</div>`;
+            }
+            return;
+          }
+          
+          window.dashboard = new DeepAriesDashboard();
+          console.log('✅ Dashboard initialized successfully');
+          if (debugDiv) {
+            debugDiv.innerHTML += `<div>${new Date().toLocaleTimeString()}: ✅ Dashboard initialized successfully</div>`;
+          }
+        } catch (error) {
+          console.error('❌ Error initializing dashboard:', error);
+          if (debugDiv) {
+            debugDiv.innerHTML += `<div>${new Date().toLocaleTimeString()}: ❌ Error initializing dashboard: ${error.message}</div>`;
+          }
+        }
+      }, 100);
+    });
+  </script>
 </body>
 </html>

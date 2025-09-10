@@ -73,6 +73,10 @@ header h1 {
   .grid {
     grid-template-columns: 1fr 1fr;
   }
+  /* Force single-column layout in Portfolio tab */
+  #portfolio .grid {
+    grid-template-columns: 1fr !important;
+  }
 }
 
 /* Cards */
@@ -116,6 +120,14 @@ header h1 {
   border-radius: 12px;
   border: 1px solid var(--border);
 }
+
+/* Portfolio controls layout: keep date inputs inline and aligned */
+#portfolio .controls { flex-wrap: nowrap; gap: 10px; }
+#portfolio .controls label { white-space: nowrap; }
+#portfolio .controls input[type="date"],
+#portfolio .controls select,
+#portfolio .controls button { height: 36px; line-height: 36px; padding: 0 10px; }
+#portfolio .controls input[type="date"] { min-width: 140px; }
 
 .controls label {
   font-weight: 500;
@@ -483,7 +495,7 @@ footer {
 
 /* Chart Containers */
 .chart-container {
-  min-height: 400px;
+  min-height: 300px;
   margin: 16px 0;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -510,6 +522,7 @@ footer {
   background: white;
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  position: relative;
 }
 
 .metric-label {
@@ -534,6 +547,38 @@ footer {
 .metric-value.negative {
   color: var(--error);
 }
+
+/* Tooltip using title attribute fallback and data-tip (for consistent look) */
+.metric[data-tip]:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: -34px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(17,24,39,0.9);
+  color: #fff;
+  padding: 6px 8px;
+  font-size: 12px;
+  white-space: nowrap;
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+/* Performance summary layout */
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  margin-top: 12px;
+}
+.summary-grid .summary-card {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.summary-grid .summary-title { font-weight: 600; margin-bottom: 8px; }
+.summary-grid .summary-row { font-size: 14px; margin: 4px 0; }
 
 /* Risk Metrics Grid */
 .risk-metrics-grid {
@@ -806,12 +851,17 @@ input[type="number"]:focus {
 /* Enhanced Chart Containers for DeepAries */
 #rebalancing_timeline,
 #performance_comparison,
-#rebalancing_frequency {
+#rebalancing_frequency,
+#market_condition_detection,
+#portfolio_weights_change {
   min-height: 450px;
   border: 2px solid var(--primary);
   border-radius: 12px;
   background: linear-gradient(135deg, #fafafa 0%, #f8fafc 100%);
 }
+
+/* Make portfolio charts taller for single-column view */
+#portfolio .chart-container { min-height: 520px; }
 
 /* Special styling for DeepAries charts */
 .deeparies-section + .card {

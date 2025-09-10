@@ -3,7 +3,7 @@
  * GitHub Pages optimized static dashboard with advanced features
  */
 
-class StockDashboard {
+class DeepAriesDashboard {
   constructor() {
     this.data = {
       market: null,
@@ -15,209 +15,1578 @@ class StockDashboard {
     this.charts = {};
     this.currentTab = 'dashboard';
     this.userPreferences = this.loadUserPreferences();
+    
+    // Configuration for external data sources
+    this.config = {
+      useExternalData: false, // Disabled for Market Data: use local market_past.csv
+      alphaVantageKey: null, // Add your Alpha Vantage API key here
+      customAPIUrl: null, // Add your custom API URL here
+      yahooFinanceEnabled: true, // Enable Yahoo Finance (free)
+      dataRefreshInterval: 300000, // 5 minutes in milliseconds
+      
+      // Error handling and fallback options
+      enableMockData: true, // Generate mock data when external sources fail
+      maxRetries: 3, // Maximum retry attempts for failed requests
+      requestTimeout: 10000, // Request timeout in milliseconds
+      rateLimitDelay: 1000, // Delay between requests to avoid rate limiting
+      enableCorsProxy: true, // Use CORS proxy for external requests
+      corsProxyUrl: 'https://api.allorigins.win/raw?url=', // CORS proxy URL
+      
+      // Data source priority (fallback order)
+      dataSourcePriority: ['yahoo', 'alphaVantage', 'custom', 'mock'],
+      
+      // Cache settings
+      enableCache: true,
+      cacheExpiry: 300000, // 5 minutes cache expiry
+      cacheKey: 'deepAries_data_cache'
+    };
+    
     this.init();
+  }
+  
+  /**
+   * Start auto-refreshing market data using external sources
+   */
+  startMarketAutoRefresh(tickers, dateRange) {
+    try {
+      if (!Array.isArray(tickers) || tickers.length === 0) return;
+      if (this._marketRefreshTimer) {
+        clearInterval(this._marketRefreshTimer);
+      }
+      const intervalMs = this.config.dataRefreshInterval || 300000;
+      const runFetch = async () => {
+        try {
+          console.log('[REFRESH] Fetching external data for tickers:', tickers);
+          const data = await this.loadYahooFinanceData(tickers, '1y', '1d');
+          if (data && data.market && data.market.length > 0) {
+            // Merge with current data and re-render
+            const merged = [...(this.data.market || []), ...data.market];
+            merged.sort((a, b) => new Date(a.date) - new Date(b.date));
+            this.data.market = merged;
+            const byTicker = this.groupMarket(this.data.market);
+            this.renderTimeSeries('timeseries', byTicker.byTicker, tickers, dateRange.startDate, dateRange.endDate);
+            console.log('[REFRESH] Market chart updated');
+          }
+        } catch (e) {
+          console.warn('[REFRESH] External refresh failed:', e.message);
+        }
+      };
+      // initial run
+      runFetch();
+      // schedule
+      this._marketRefreshTimer = setInterval(runFetch, intervalMs);
+      console.log('[REFRESH] Auto refresh started, interval(ms):', intervalMs);
+    } catch (error) {
+      console.warn('[WARN] Failed to start auto refresh:', error.message);
+    }
   }
 
   async init() {
     try {
+      console.log('[INIT] Initializing DeepAries Dashboard...');
+      this.updateDebugInfo('[INIT] Initializing DeepAries Dashboard...');
+      
+      // Check if required libraries are loaded
+      if (typeof Plotly === 'undefined') {
+        console.error('[ERROR] Plotly is not loaded');
+        this.updateDebugInfo('[ERROR] Plotly is not loaded');
+        return;
+      }
+      
+      if (typeof Papa === 'undefined') {
+        console.error('[ERROR] PapaParse is not loaded');
+        this.updateDebugInfo('[ERROR] PapaParse is not loaded');
+        return;
+      }
+      
+      console.log('[SUCCESS] Required libraries loaded');
+      this.updateDebugInfo('[SUCCESS] Required libraries loaded');
+      
+      // Load data first
       await this.loadAllData();
-      this.advancedFeatures = new AdvancedFeatures(this);
+      console.log('[SUCCESS] Data loaded successfully');
+      this.updateDebugInfo('[SUCCESS] Data loaded successfully');
+      
+      // Wait a bit for DOM to be fully ready
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Initialize advanced features if available
+      if (typeof AdvancedFeatures !== 'undefined') {
+        this.advancedFeatures = new AdvancedFeatures(this);
+      }
+      
+      // Setup event listeners
       this.setupEventListeners();
-      this.setupTabNavigation();
+      console.log('[SUCCESS] Event listeners setup complete');
+      this.updateDebugInfo('[SUCCESS] Event listeners setup complete');
+      
+      // Render initial charts
       this.renderInitialCharts();
+      console.log('[SUCCESS] Dashboard initialized successfully');
+      this.updateDebugInfo('[SUCCESS] Dashboard initialized successfully');
+
+      // If Portfolio tab is the default active tab, initialize it now
+      try {
+        const activeTabBtn = document.querySelector('.tab-button.active');
+        if (activeTabBtn && activeTabBtn.dataset.tab === 'portfolio') {
+          this.initializePortfolioTab();
+        }
+      } catch (_) {}
     } catch (error) {
+      console.error('[ERROR] Error initializing dashboard:', error);
+      this.updateDebugInfo('[ERROR] Error: ' + error.message);
       this.showError('Error loading data: ' + error.message);
     }
   }
 
   async loadAllData() {
+    console.log('[DATA] Loading all data files...');
+    
+    // Use ONLY market_past.csv for Market Data
+    let marketPast, future, result, test;
     const dataFiles = [
-      'data/market.csv',
-      'data/market_past.csv', 
+      'data/market_past.csv',
       'data/future.csv',
       'data/result.csv',
       'data/test.csv'
     ];
 
-    const [market, marketPast, future, result, test] = await Promise.all(
+    [marketPast, future, result, test] = await Promise.all(
       dataFiles.map(file => this.loadCSV(file))
     );
 
-    this.data = { market, marketPast, future, result, test };
+      // Market Data uses only market_past rows
+      const combinedMarket = [...(marketPast || [])];
+      
+      // Sort by date to ensure chronological order
+      combinedMarket.sort((a, b) => new Date(a.date) - new Date(b.date));
+      
+      this.data = { 
+        market: combinedMarket, 
+        marketPast, 
+        future, 
+        result, 
+        test 
+      };
+      
+      console.log('[SUCCESS] All data loaded:', {
+        market: this.data.market?.length || 0,
+        marketPast: this.data.marketPast?.length || 0,
+        future: this.data.future?.length || 0,
+        result: this.data.result?.length || 0,
+        test: this.data.test?.length || 0
+      });
+      
+      console.log('[DATA] Market data from market_past only:', {
+        pastData: marketPast?.length || 0,
+        totalCombined: combinedMarket.length
+      });
+      
+      // Log sample data for debugging
+      if (combinedMarket.length > 0) {
+        const sampleTickers = [...new Set(combinedMarket.map(d => d.ticker))].slice(0, 5);
+        console.log('[DATA] Sample tickers:', sampleTickers);
+        
+        sampleTickers.forEach(ticker => {
+          const tickerData = combinedMarket.filter(d => d.ticker === ticker);
+          if (tickerData.length > 0) {
+            console.log(`[DATA] ${ticker}: ${tickerData.length} data points, first: ${tickerData[0].date}, last: ${tickerData[tickerData.length-1].date}`);
+          }
+        });
+        
+        // Check for 000786.SZ specifically
+        const targetTicker = '000786.SZ';
+        const targetData = combinedMarket.filter(d => d.ticker === targetTicker);
+        console.log(`[DEBUG] ${targetTicker} data points:`, targetData.length);
+        if (targetData.length > 0) {
+          console.log(`[DEBUG] ${targetTicker} date range:`, targetData[0].date, 'to', targetData[targetData.length-1].date);
+        }
+      }
+  }
+
+  /**
+   * Load external data from APIs or other sources
+   */
+  async loadExternalData() {
+    try {
+      // Check cache first
+      if (this.config.enableCache) {
+        const cachedData = this.getCachedData();
+        if (cachedData) {
+          console.log('[CACHE] Using cached external data');
+          return cachedData;
+        }
+      }
+      
+      // Try data sources in priority order
+      for (const source of this.config.dataSourcePriority) {
+        try {
+          let data = null;
+          
+          switch (source) {
+            case 'yahoo':
+              if (this.config.yahooFinanceEnabled) {
+                // Prefer UI-selected tickers if available
+                const selected = this.getSelectedMarketTickers?.() || [];
+                data = await this.loadYahooFinanceData(selected, '1y', '1d');
+              }
+              break;
+            case 'alphaVantage':
+              if (this.config.alphaVantageKey) {
+                data = await this.loadAlphaVantageData();
+              }
+              break;
+            case 'custom':
+              if (this.config.customAPIUrl) {
+                data = await this.loadCustomAPIData();
+              }
+              break;
+            case 'mock':
+              if (this.config.enableMockData) {
+                data = this.generateMockDataForAllTickers();
+              }
+              break;
+          }
+          
+          if (data && this.isValidData(data)) {
+            console.log(`[SUCCESS] Loaded data from ${source}`);
+            
+            // Cache the data
+            if (this.config.enableCache) {
+              this.setCachedData(data);
+            }
+            
+            return data;
+          }
+          
+        } catch (error) {
+          console.warn(`[WARN] Failed to load from ${source}:`, error.message);
+          continue;
+        }
+      }
+      
+      console.error('[ERROR] All external data sources failed');
+      return null;
+      
+    } catch (error) {
+      console.error('[ERROR] External data loading failed:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Load data from Yahoo Finance (free, no API key)
+   * Enhanced with CORS proxy and error handling
+   */
+  async loadYahooFinanceData(inputTickers = null, range = '1y', interval = '1d') {
+    try {
+      console.log('[EXTERNAL] Loading Yahoo Finance data...');
+      
+      // Check if we're in a browser environment that supports CORS
+      if (typeof window === 'undefined') {
+        console.warn('[WARN] Yahoo Finance API requires browser environment');
+        return null;
+      }
+      
+      // Use CORS proxy to avoid CORS issues
+      const corsProxy = 'https://api.allorigins.win/raw?url=';
+      const tickers = Array.isArray(inputTickers) && inputTickers.length > 0
+        ? inputTickers
+        : ['AAPL', 'GOOGL', 'MSFT', 'TSLA', 'AMZN'];
+      
+      // Load tickers with retry mechanism and rate limiting
+      const results = [];
+      for (let i = 0; i < tickers.length; i++) {
+        const ticker = tickers[i];
+        
+        try {
+          // Add delay between requests to avoid rate limiting
+          if (i > 0) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+          
+          const url = `${corsProxy}${encodeURIComponent(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?range=${range}&interval=${interval}`)}`;
+          
+          const response = await this.fetchWithTimeout(url, 10000); // 10 second timeout
+          
+          if (!response.ok) {
+            console.warn(`[WARN] HTTP ${response.status} for ${ticker}`);
+            continue;
+          }
+          
+          const data = await response.json();
+          const parsedData = this.parseYahooData(ticker, data);
+          
+          if (parsedData && parsedData.length > 0) {
+            results.push(parsedData);
+            console.log(`[SUCCESS] Loaded ${ticker}: ${parsedData.length} data points`);
+          } else {
+            console.warn(`[WARN] No valid data for ${ticker}`);
+          }
+          
+        } catch (error) {
+          console.warn(`[WARN] Failed to load ${ticker}:`, error.message);
+          
+          // Try alternative data source for this ticker
+          const alternativeData = await this.loadAlternativeData(ticker);
+          if (alternativeData) {
+            results.push(alternativeData);
+          }
+        }
+      }
+      
+      if (results.length > 0) {
+        return this.formatExternalData(results);
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('[ERROR] Yahoo Finance data loading failed:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Fetch with timeout and retry mechanism
+   */
+  async fetchWithTimeout(url, timeout = 10000, retries = 3) {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
+        
+        const response = await fetch(url, {
+          signal: controller.signal,
+          headers: {
+            'Accept': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (compatible; DeepAries/1.0)'
+          }
+        });
+        
+        clearTimeout(timeoutId);
+        return response;
+        
+      } catch (error) {
+        console.warn(`[WARN] Fetch attempt ${attempt} failed:`, error.message);
+        
+        if (attempt === retries) {
+          throw error;
+        }
+        
+        // Exponential backoff
+        await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+      }
+    }
+  }
+
+  /**
+   * Load alternative data source when primary fails
+   */
+  async loadAlternativeData(ticker) {
+    try {
+      console.log(`[ALTERNATIVE] Trying alternative source for ${ticker}...`);
+      
+      // Option 1: Try different Yahoo Finance endpoint
+      const alternativeUrl = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${ticker}`;
+      const corsProxy = 'https://api.allorigins.win/raw?url=';
+      
+      const response = await this.fetchWithTimeout(`${corsProxy}${encodeURIComponent(alternativeUrl)}`, 5000);
+      
+      if (response.ok) {
+        const data = await response.json();
+        return this.parseAlternativeYahooData(ticker, data);
+      }
+      
+      // Option 2: Generate mock data for demo purposes
+      return this.generateMockData(ticker);
+      
+    } catch (error) {
+      console.warn(`[WARN] Alternative data loading failed for ${ticker}:`, error);
+      return this.generateMockData(ticker);
+    }
+  }
+
+  /**
+   * Parse alternative Yahoo Finance response
+   */
+  parseAlternativeYahooData(ticker, data) {
+    try {
+      if (data.quoteResponse && data.quoteResponse.result && data.quoteResponse.result.length > 0) {
+        const quote = data.quoteResponse.result[0];
+        const currentPrice = quote.regularMarketPrice;
+        const previousClose = quote.regularMarketPreviousClose;
+        
+        // Generate simple time series with current and previous price
+        const today = new Date();
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        
+        return [
+          {
+            date: yesterday.toISOString().split('T')[0],
+            ticker: ticker,
+            close: previousClose,
+            open: previousClose,
+            high: previousClose * 1.02,
+            low: previousClose * 0.98,
+            volume: 1000000
+          },
+          {
+            date: today.toISOString().split('T')[0],
+            ticker: ticker,
+            close: currentPrice,
+            open: previousClose,
+            high: currentPrice * 1.01,
+            low: currentPrice * 0.99,
+            volume: 1000000
+          }
+        ];
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('[ERROR] Failed to parse alternative Yahoo data:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Generate mock data for demo purposes
+   */
+  generateMockData(ticker) {
+    console.log(`[MOCK] Generating mock data for ${ticker}...`);
+    
+    const mockData = [];
+    const basePrice = 100 + Math.random() * 200; // Random base price between 100-300
+    const today = new Date();
+    
+    // Generate 30 days of mock data
+    for (let i = 29; i >= 0; i--) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
+      
+      const priceChange = (Math.random() - 0.5) * 10; // Random price change
+      const price = Math.max(1, basePrice + priceChange);
+      
+      mockData.push({
+        date: date.toISOString().split('T')[0],
+        ticker: ticker,
+        close: price,
+        open: price + (Math.random() - 0.5) * 2,
+        high: price + Math.random() * 5,
+        low: price - Math.random() * 5,
+        volume: Math.floor(Math.random() * 10000000) + 1000000
+      });
+    }
+    
+    return mockData;
+  }
+
+  /**
+   * Generate mock data for all tickers
+   */
+  generateMockDataForAllTickers() {
+    const tickers = ['AAPL', 'GOOGL', 'MSFT', 'TSLA', 'AMZN'];
+    const allData = [];
+    
+    tickers.forEach(ticker => {
+      const mockData = this.generateMockData(ticker);
+      allData.push(...mockData);
+    });
+    
+    return {
+      market: allData,
+      marketPast: [],
+      future: [],
+      result: [],
+      test: []
+    };
+  }
+
+  /**
+   * Validate external data
+   */
+  isValidData(data) {
+    return data && 
+           data.market && 
+           Array.isArray(data.market) && 
+           data.market.length > 0 &&
+           data.market[0].hasOwnProperty('date') &&
+           data.market[0].hasOwnProperty('ticker') &&
+           data.market[0].hasOwnProperty('close');
+  }
+
+  /**
+   * Get cached data
+   */
+  getCachedData() {
+    try {
+      const cached = localStorage.getItem(this.config.cacheKey);
+      if (cached) {
+        const data = JSON.parse(cached);
+        const now = Date.now();
+        
+        if (data.timestamp && (now - data.timestamp) < this.config.cacheExpiry) {
+          return data.data;
+        } else {
+          // Cache expired
+          localStorage.removeItem(this.config.cacheKey);
+        }
+      }
+    } catch (error) {
+      console.warn('[WARN] Failed to read cache:', error);
+    }
+    
+    return null;
+  }
+
+  /**
+   * Set cached data
+   */
+  setCachedData(data) {
+    try {
+      const cacheData = {
+        data: data,
+        timestamp: Date.now()
+      };
+      
+      localStorage.setItem(this.config.cacheKey, JSON.stringify(cacheData));
+      console.log('[CACHE] Data cached successfully');
+    } catch (error) {
+      console.warn('[WARN] Failed to cache data:', error);
+    }
+  }
+
+  /**
+   * Clear cache
+   */
+  clearCache() {
+    try {
+      localStorage.removeItem(this.config.cacheKey);
+      console.log('[CACHE] Cache cleared');
+    } catch (error) {
+      console.warn('[WARN] Failed to clear cache:', error);
+    }
+  }
+
+  /**
+   * Parse Yahoo Finance API response
+   */
+  parseYahooData(ticker, data) {
+    try {
+      const chart = data.chart.result[0];
+      const timestamps = chart.timestamp;
+      const closes = chart.indicators.quote[0].close;
+      
+      return timestamps.map((timestamp, index) => ({
+        date: new Date(timestamp * 1000).toISOString().split('T')[0],
+        ticker: ticker,
+        close: closes[index],
+        open: chart.indicators.quote[0].open[index],
+        high: chart.indicators.quote[0].high[index],
+        low: chart.indicators.quote[0].low[index],
+        volume: chart.indicators.quote[0].volume[index]
+      })).filter(item => item.close !== null);
+    } catch (error) {
+      console.error('[ERROR] Failed to parse Yahoo data:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Format external data to match internal structure
+   */
+  formatExternalData(externalData) {
+    const allData = externalData.flat();
+    
+    return {
+      market: allData,
+      marketPast: [], // External data is already historical
+      future: [], // Would need prediction API
+      result: [], // Would need portfolio results
+      test: [] // Would need test data
+    };
+  }
+
+  /**
+   * Load data from Alpha Vantage API (requires free API key)
+   */
+  async loadAlphaVantageData() {
+    try {
+      const apiKey = this.config?.alphaVantageKey;
+      if (!apiKey) {
+        console.log('[INFO] Alpha Vantage API key not configured');
+        return null;
+      }
+      
+      console.log('[EXTERNAL] Loading Alpha Vantage data...');
+      // Implementation for Alpha Vantage API
+      // This would require API key setup
+      
+      return null;
+    } catch (error) {
+      console.error('[ERROR] Alpha Vantage data loading failed:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Load data from custom API endpoint
+   */
+  async loadCustomAPIData() {
+    try {
+      const apiUrl = this.config?.customAPIUrl;
+      if (!apiUrl) {
+        console.log('[INFO] Custom API URL not configured');
+        return null;
+      }
+      
+      console.log('[EXTERNAL] Loading custom API data...');
+      const response = await fetch(apiUrl);
+      const data = await response.json();
+      
+      return this.formatCustomAPIData(data);
+    } catch (error) {
+      console.error('[ERROR] Custom API data loading failed:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Format custom API data
+   */
+  formatCustomAPIData(data) {
+    // Convert custom API response to internal format
+    return {
+      market: data.market || [],
+      marketPast: data.marketPast || [],
+      future: data.future || [],
+      result: data.result || [],
+      test: data.test || []
+    };
   }
 
   async loadCSV(url) {
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) throw new Error(`Failed to fetch ${url}`);
-    const text = await res.text();
-    
-    return new Promise((resolve) => {
-      Papa.parse(text, {
-        header: true,
-        skipEmptyLines: true,
-        dynamicTyping: true,
-        complete: (result) => resolve(result.data),
+    try {
+      console.log('[LOAD] Loading CSV:', url);
+      const res = await fetch(url, { cache: "no-store" });
+      if (!res.ok) {
+        console.error(`[ERROR] Failed to fetch ${url}:`, res.status, res.statusText);
+        throw new Error(`Failed to fetch ${url}: ${res.status} ${res.statusText}`);
+      }
+      const text = await res.text();
+      
+      return new Promise((resolve) => {
+        Papa.parse(text, {
+          header: true,
+          skipEmptyLines: true,
+          dynamicTyping: true,
+          complete: (result) => {
+            console.log(`[SUCCESS] Loaded ${url}:`, result.data.length, 'rows');
+            resolve(result.data);
+          },
+          error: (error) => {
+            console.error(`[ERROR] Error parsing ${url}:`, error);
+            resolve([]); // Return empty array instead of throwing
+          }
+        });
       });
-    });
+    } catch (error) {
+      console.error(`[ERROR] Error loading ${url}:`, error);
+      return []; // Return empty array instead of throwing
+    }
   }
 
   setupEventListeners() {
+    console.log('[SETUP] Setting up event listeners...');
+    
     // Dashboard tab events
-    document.getElementById('update_market_btn').addEventListener('click', () => {
-      const selected = Array.from(document.getElementById('market_ticker_select').selectedOptions)
-        .map(o => o.value).slice(0, 15);
-      this.renderTimeSeries('timeseries', this.groupMarket(this.data.market), selected);
-    });
+    const updateMarketBtn = document.getElementById('update_market_btn');
+    if (updateMarketBtn) {
+      updateMarketBtn.addEventListener('click', () => {
+        try {
+          console.log('[CLICK] Market update button clicked');
+          this.updateDebugInfo('[CLICK] Market update button clicked');
+          
+          const tickerSelect = document.getElementById('market_ticker_select');
+          if (!tickerSelect) {
+            console.error('[ERROR] Market ticker select not found');
+            this.updateDebugInfo('[ERROR] Market ticker select not found');
+            return;
+          }
+          
+          const selected = Array.from(tickerSelect.selectedOptions)
+            .map(o => o.value);
+          console.log('[SELECT] Selected tickers:', selected);
+          this.updateDebugInfo(`[SELECT] Selected tickers: ${selected.join(', ')}`);
+          // expose selected tickers for external fetches
+          this.getSelectedMarketTickers = () => selected;
+          
+          if (selected.length === 0) {
+            console.warn('[WARN] No tickers selected');
+            this.updateDebugInfo('[WARN] No tickers selected');
+            return;
+          }
+          
+          const dateRange = this.getSelectedDateRange();
+          console.log('[DATE] Date range:', dateRange);
+          
+          if (!this.data.market || this.data.market.length === 0) {
+            console.error('[ERROR] No market data available');
+            this.updateDebugInfo('[ERROR] No market data available');
+            return;
+          }
+          
+          const marketVal = (document.getElementById('market_market_select')||{}).value;
+          const filteredRows = marketVal ? this.data.market.filter(r => r.market === marketVal) : this.data.market;
+          const marketData = this.groupMarket(filteredRows);
+          this.renderTimeSeries('timeseries', marketData.byTicker, selected, dateRange.startDate, dateRange.endDate);
+          console.log('[SUCCESS] Market data updated successfully');
+          this.updateDebugInfo('[SUCCESS] Market data updated successfully');
+          // kick off/refresh auto refresh from external APIs when enabled
+          if (this.config.useExternalData && this.startMarketAutoRefresh) {
+            this.startMarketAutoRefresh(selected, dateRange);
+          }
+        } catch (error) {
+          console.error('[ERROR] Error updating market data:', error);
+          this.updateDebugInfo('[ERROR] Error updating market data: ' + error.message);
+        }
+      });
+      console.log('[SUCCESS] Market update button listener added');
+    } else {
+      console.warn('[WARN] Market update button not found');
+    }
 
-    document.getElementById('update_past_btn').addEventListener('click', () => {
-      const selected = Array.from(document.getElementById('past_ticker_select').selectedOptions)
-        .map(o => o.value).slice(0, 15);
-      this.renderTimeSeries('past_timeseries', this.groupMarket(this.data.marketPast), selected);
-    });
+    // In manual-update mode, ticker change does not auto-render
 
-    document.getElementById('update_result_btn').addEventListener('click', () => {
-      this.updateResultSection();
-    });
+    // Date range selection
+    const dateRangeSelect = document.getElementById('date_range_select');
+    if (dateRangeSelect) {
+      dateRangeSelect.addEventListener('change', () => {
+        this.handleDateRangeChange();
+      });
+      console.log('[SUCCESS] Date range select listener added');
+    }
 
-    document.getElementById('update_index_btn').addEventListener('click', () => {
-      const selected = document.getElementById('index_market_select').value;
-      this.renderIndexSeries('index_series', this.data.test, selected);
-    });
+    const updateResultBtn = document.getElementById('update_result_btn');
+    if (updateResultBtn) {
+      updateResultBtn.addEventListener('click', () => {
+        this.updateResultSection();
+      });
+      console.log('[SUCCESS] Result update button listener added');
+    } else {
+      console.warn('[WARN] Result update button not found');
+    }
+
+    const updateIndexBtn = document.getElementById('update_index_btn');
+    if (updateIndexBtn) {
+      updateIndexBtn.addEventListener('click', () => {
+        const selected = document.getElementById('index_market_select').value;
+        this.renderIndexSeries('index_series', this.data.test, selected);
+      });
+      console.log('[SUCCESS] Index update button listener added');
+    } else {
+      console.warn('[WARN] Index update button not found');
+    }
+
+    // Test buttons
+    const testRenderBtn = document.getElementById('test_render_btn');
+    if (testRenderBtn) {
+      testRenderBtn.addEventListener('click', () => {
+        console.log('[TEST] Test render button clicked');
+        this.updateDebugInfo('[TEST] Test render button clicked');
+        this.testRender();
+      });
+      console.log('[SUCCESS] Test render button listener added');
+    } else {
+      console.warn('[WARN] Test render button not found');
+    }
+
+    const forceRenderBtn = document.getElementById('force_render_btn');
+    if (forceRenderBtn) {
+      forceRenderBtn.addEventListener('click', () => {
+        console.log('[FORCE] Force render button clicked');
+        this.updateDebugInfo('[FORCE] Force render button clicked');
+        this.forceRender();
+      });
+      console.log('[SUCCESS] Force render button listener added');
+    } else {
+      console.warn('[WARN] Force render button not found');
+    }
 
     // Export buttons
-    document.getElementById('export_market_btn').addEventListener('click', () => {
-      this.exportData(this.data.market, 'market_data.csv');
-    });
+    const exportMarketBtn = document.getElementById('export_market_btn');
+    if (exportMarketBtn) {
+      exportMarketBtn.addEventListener('click', () => {
+        this.exportData(this.data.market, 'market_data.csv');
+      });
+      console.log('[SUCCESS] Export market button listener added');
+    }
 
-    document.getElementById('export_past_btn').addEventListener('click', () => {
-      this.exportData(this.data.marketPast, 'past_market_data.csv');
-    });
+    const exportHeatmapBtn = document.getElementById('export_heatmap_btn');
+    if (exportHeatmapBtn) {
+      exportHeatmapBtn.addEventListener('click', () => {
+        this.exportData(this.data.future, 'future_predictions.csv');
+      });
+      console.log('[SUCCESS] Export heatmap button listener added');
+    }
 
-    document.getElementById('export_heatmap_btn').addEventListener('click', () => {
-      this.exportData(this.data.future, 'future_predictions.csv');
-    });
+    const exportResultBtn = document.getElementById('export_result_btn');
+    if (exportResultBtn) {
+      exportResultBtn.addEventListener('click', () => {
+        this.exportData(this.data.result, 'portfolio_results.csv');
+      });
+      console.log('[SUCCESS] Export result button listener added');
+    }
 
-    document.getElementById('export_result_btn').addEventListener('click', () => {
-      this.exportData(this.data.result, 'portfolio_results.csv');
-    });
-
-    document.getElementById('export_index_btn').addEventListener('click', () => {
-      this.exportData(this.data.test, 'index_data.csv');
-    });
+    const exportIndexBtn = document.getElementById('export_index_btn');
+    if (exportIndexBtn) {
+      exportIndexBtn.addEventListener('click', () => {
+        this.exportData(this.data.test, 'index_data.csv');
+      });
+      console.log('[SUCCESS] Export index button listener added');
+    }
 
     // Fullscreen button
-    document.getElementById('fullscreen_heatmap_btn').addEventListener('click', () => {
-      this.openFullscreen('heatmap');
-    });
+    const fullscreenHeatmapBtn = document.getElementById('fullscreen_heatmap_btn');
+    if (fullscreenHeatmapBtn) {
+      fullscreenHeatmapBtn.addEventListener('click', () => {
+        this.openFullscreen('heatmap');
+      });
+      console.log('[SUCCESS] Fullscreen heatmap button listener added');
+    }
 
     // Analysis tab events
-    document.getElementById('update_tech_btn').addEventListener('click', () => {
-      this.updateTechnicalAnalysis();
-    });
+    const updateTechBtn = document.getElementById('update_tech_btn');
+    if (updateTechBtn) {
+      updateTechBtn.addEventListener('click', () => {
+        this.updateTechnicalAnalysis();
+      });
+      console.log('[SUCCESS] Technical analysis button listener added');
+    }
 
-    document.getElementById('update_candle_btn').addEventListener('click', () => {
-      this.updateCandlestickChart();
-    });
+    const updateCandleBtn = document.getElementById('update_candle_btn');
+    if (updateCandleBtn) {
+      updateCandleBtn.addEventListener('click', () => {
+        this.updateCandlestickChart();
+      });
+      console.log('[SUCCESS] Candlestick button listener added');
+    }
 
-    document.getElementById('update_volume_btn').addEventListener('click', () => {
-      this.updateVolumeAnalysis();
-    });
+    const updateVolumeBtn = document.getElementById('update_volume_btn');
+    if (updateVolumeBtn) {
+      updateVolumeBtn.addEventListener('click', () => {
+        this.updateVolumeAnalysis();
+      });
+      console.log('[SUCCESS] Volume analysis button listener added');
+    }
 
-    document.getElementById('update_correlation_btn').addEventListener('click', () => {
-      this.updateCorrelationMatrix();
-    });
+    const updateCorrelationBtn = document.getElementById('update_correlation_btn');
+    if (updateCorrelationBtn) {
+      updateCorrelationBtn.addEventListener('click', () => {
+        this.updateCorrelationMatrix();
+      });
+      console.log('[SUCCESS] Correlation matrix button listener added');
+    }
 
     // Portfolio tab events
-    document.getElementById('optimize_portfolio_btn').addEventListener('click', () => {
-      this.optimizePortfolio();
-    });
+    const optimizePortfolioBtn = document.getElementById('optimize_portfolio_btn');
+    if (optimizePortfolioBtn) {
+      optimizePortfolioBtn.addEventListener('click', () => {
+        this.optimizePortfolio();
+      });
+      console.log('[SUCCESS] Optimize portfolio button listener added');
+    }
 
-    document.getElementById('rebalance_btn').addEventListener('click', () => {
-      this.rebalancePortfolio();
-    });
+    const rebalanceBtn = document.getElementById('rebalance_btn');
+    if (rebalanceBtn) {
+      rebalanceBtn.addEventListener('click', () => {
+        this.rebalancePortfolio();
+      });
+      console.log('[SUCCESS] Rebalance button listener added');
+    }
 
     // Risk tab events
-    document.getElementById('calculate_var_btn').addEventListener('click', () => {
-      this.calculateVaR();
-    });
+    const calculateVarBtn = document.getElementById('calculate_var_btn');
+    if (calculateVarBtn) {
+      calculateVarBtn.addEventListener('click', () => {
+        this.calculateVaR();
+      });
+      console.log('[SUCCESS] Calculate VaR button listener added');
+    }
 
-    document.getElementById('run_stress_test_btn').addEventListener('click', () => {
-      this.runStressTest();
-    });
+    const runStressTestBtn = document.getElementById('run_stress_test_btn');
+    if (runStressTestBtn) {
+      runStressTestBtn.addEventListener('click', () => {
+        this.runStressTest();
+      });
+      console.log('[SUCCESS] Run stress test button listener added');
+    }
 
   }
 
   renderInitialCharts() {
-    // Market data
-    const marketData = this.groupMarket(this.data.market);
-    this.populateSelect('market_ticker_select', marketData.tickers);
-    this.renderTimeSeries('timeseries', marketData, []);
+    console.log('[RENDER] Rendering initial charts...');
+    this.updateDebugInfo('[RENDER] Rendering initial charts...');
+    
+    try {
+      // Combined Market data (Dashboard tab) - with default values
+      if (this.data.market && this.data.market.length > 0) {
+        console.log('[DATA] Processing market data:', this.data.market.length, 'rows');
+        this.updateDebugInfo(`[DATA] Processing market data: ${this.data.market.length} rows`);
+        
+        try {
+          const marketData = this.groupMarket(this.data.market);
+          console.log('[DATA] Grouped market data:', Object.keys(marketData.byTicker).length, 'tickers');
+          this.updateDebugInfo(`[DATA] Grouped market data: ${Object.keys(marketData.byTicker).length} tickers`);
+          
+          if (marketData.tickers && marketData.tickers.length > 0) {
+            // Populate market select and filter tickers by selected market
+            const markets = this.unique(this.data.market.map(r => r.market).filter(Boolean)).sort();
+            this.populateSelect('market_market_select', markets);
 
-    // Past market data
-    const pastData = this.groupMarket(this.data.marketPast);
-    this.populateSelect('past_ticker_select', pastData.tickers);
-    this.renderTimeSeries('past_timeseries', pastData, []);
+            const marketSelect = document.getElementById('market_market_select');
+            const applyMarketFilter = () => {
+              const marketVal = marketSelect?.value || markets[0];
+              const filteredRows = this.data.market.filter(r => r.market === marketVal);
+              const tickersInMarket = this.unique(filteredRows.map(r => r.ticker)).sort();
+              this.populateSelect('market_ticker_select', tickersInMarket);
 
-    // Future heatmap
-    const futureData = this.buildFutureMatrix(this.data.future);
-    this.renderHeatmap('heatmap', futureData);
+              // Default to three representative DJ30 tickers if available; otherwise first 3 in market
+              const dj30Defaults = ['AAPL', 'MSFT', 'JPM'];
+              const defaultTickers = dj30Defaults.filter(t => tickersInMarket.includes(t)).slice(0, 3);
+              const finalDefaults = defaultTickers.length === 3 ? defaultTickers : tickersInMarket.slice(0, 3);
+              console.log('[SELECT] Default tickers selected:', finalDefaults);
+              this.updateDebugInfo(`[SELECT] Default tickers selected: ${finalDefaults.join(', ')}`);
+              this.setDefaultTickers(finalDefaults);
 
-    // Result data
-    this.setupResultSection();
+              // Render with current date range for selected market rows only
+              const dateRange = this.getSelectedDateRange();
+              const byTicker = this.groupMarket(filteredRows).byTicker;
+              this.renderTimeSeries('timeseries', byTicker, finalDefaults, dateRange.startDate, dateRange.endDate);
+            };
 
-    // Test data
-    const indexMarkets = this.unique(this.data.test.map(r => r.market).filter(Boolean)).sort();
-    this.populateSelect('index_market_select', indexMarkets);
-    this.renderIndexSeries('index_series', this.data.test, indexMarkets[0]);
+            if (marketSelect) {
+              // Only repopulate tickers on market change; do not auto-render
+              marketSelect.addEventListener('change', applyMarketFilter);
+            }
+            // Initialize tickers for default market, but do not draw until Update
+            applyMarketFilter();
+            
+            // Set default date range
+            this.setDefaultDateRange();
+            
+            // Wait for DOM updates and ensure proper initialization
+            setTimeout(() => {
+              try {
+                // Get default date range
+                const dateRange = this.getSelectedDateRange();
+                console.log('[DATE] Default date range for initial render:', dateRange);
+                
+                // Verify we have data before rendering
+                if (!marketData.byTicker || Object.keys(marketData.byTicker).length === 0) {
+                  console.error('[ERROR] No market data available for rendering');
+                  this.updateDebugInfo('[ERROR] No market data available for rendering');
+                  return;
+                }
+                
+                // Do not auto-render on load; rely on Update button
+                console.log('[INFO] Market and tickers initialized; waiting for Update click to render');
+                this.updateDebugInfo('[INFO] Ready to render after Update click');
+              } catch (error) {
+                console.error('[ERROR] Error rendering initial chart:', error);
+                this.updateDebugInfo('[ERROR] Error rendering initial chart: ' + error.message);
+              }
+            }, 200);
+          } else {
+            console.warn('[WARN] No tickers found in market data');
+            this.updateDebugInfo('[WARN] No tickers found in market data');
+          }
+        } catch (error) {
+          console.error('[ERROR] Error processing market data:', error);
+          this.updateDebugInfo('[ERROR] Error processing market data: ' + error.message);
+        }
+      } else {
+        console.warn('[WARN] No market data available');
+        this.updateDebugInfo('[WARN] No market data available');
+      }
 
-    // Phase 1: DeepAries Core Features
-    this.renderRebalancingTimeline();
-    this.renderPerformanceComparison();
-    this.renderRebalancingFrequency();
+      // Future heatmap
+      if (this.data.future && this.data.future.length > 0) {
+        console.log('[FUTURE] Processing future data:', this.data.future.length, 'rows');
+        const futureData = this.buildFutureMatrix(this.data.future);
+        this.renderHeatmap('heatmap', futureData);
+        console.log('[SUCCESS] Future heatmap rendered');
+        this.updateDebugInfo('[SUCCESS] Future heatmap rendered');
+      } else {
+        console.warn('[WARN] No future data available');
+        this.updateDebugInfo('[WARN] No future data available');
+      }
+
+      // Result data - with default values
+      if (this.data.result && this.data.result.length > 0) {
+        console.log('[RESULT] Processing result data:', this.data.result.length, 'rows');
+        this.setupResultSection();
+        console.log('[SUCCESS] Result section setup');
+        this.updateDebugInfo('[SUCCESS] Result section setup');
+      } else {
+        console.warn('[WARN] No result data available');
+        this.updateDebugInfo('[WARN] No result data available');
+      }
+
+      // Test data - with default values
+      if (this.data.test && this.data.test.length > 0) {
+        console.log('[TEST] Processing test data:', this.data.test.length, 'rows');
+        const indexMarkets = this.unique(this.data.test.map(r => r.market).filter(Boolean)).sort();
+        this.populateSelect('index_market_select', indexMarkets);
+        
+        // Select first market by default
+        const defaultMarket = indexMarkets[0];
+        this.renderIndexSeries('index_series', this.data.test, defaultMarket);
+        console.log('[SUCCESS] Index series chart rendered with default market:', defaultMarket);
+        this.updateDebugInfo(`[SUCCESS] Index series chart rendered with market: ${defaultMarket}`);
+      } else {
+        console.warn('[WARN] No test data available');
+        this.updateDebugInfo('[WARN] No test data available');
+      }
+      
+      console.log('[SUCCESS] Initial charts rendered with default values');
+      this.updateDebugInfo('[SUCCESS] Initial charts rendered with default values');
+    } catch (error) {
+      console.error('[ERROR] Error rendering charts:', error);
+      this.updateDebugInfo('[ERROR] Error rendering charts: ' + error.message);
+    }
   }
+
 
   groupMarket(rows) {
-    rows = rows.filter(r => r.date && r.ticker && r.close != null);
-    rows.sort((a, b) => new Date(a.date) - new Date(b.date));
-
-    const byTicker = {};
-    const tickers = new Set();
-
-    for (const r of rows) {
-      tickers.add(r.ticker);
-      if (!byTicker[r.ticker]) byTicker[r.ticker] = { date: [], close: [] };
-      byTicker[r.ticker].date.push(r.date);
-      byTicker[r.ticker].close.push(r.close);
+    console.log('[GROUP] Grouping market data:', rows ? rows.length : 0, 'rows');
+    
+    if (!rows || !Array.isArray(rows) || rows.length === 0) {
+      console.warn('[WARN] No market data provided to groupMarket');
+      this.updateDebugInfo('[WARN] No market data provided to groupMarket');
+      return { byTicker: {}, tickers: [] };
     }
-    return { byTicker, tickers: Array.from(tickers).sort() };
+    
+    try {
+      const filteredRows = rows.filter(r => r && r.date && r.ticker && r.close != null);
+      console.log('[FILTER] Filtered rows:', filteredRows.length, 'valid rows');
+      this.updateDebugInfo(`[FILTER] Filtered rows: ${filteredRows.length} valid rows`);
+      
+      if (filteredRows.length === 0) {
+        console.warn('[WARN] No valid rows after filtering');
+        this.updateDebugInfo('[WARN] No valid rows after filtering');
+        return { byTicker: {}, tickers: [] };
+      }
+      
+      filteredRows.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      const byTicker = {};
+      const tickers = new Set();
+
+      for (const r of filteredRows) {
+        tickers.add(r.ticker);
+        if (!byTicker[r.ticker]) byTicker[r.ticker] = { date: [], close: [] };
+        byTicker[r.ticker].date.push(r.date);
+        byTicker[r.ticker].close.push(r.close);
+      }
+      
+      const result = { byTicker, tickers: Array.from(tickers).sort() };
+      console.log('[GROUP] Grouped result:', Object.keys(byTicker).length, 'tickers');
+      console.log('[GROUP] Tickers:', result.tickers);
+      this.updateDebugInfo(`[GROUP] Grouped result: ${Object.keys(byTicker).length} tickers`);
+      
+      return result;
+    } catch (error) {
+      console.error('[ERROR] Error in groupMarket:', error);
+      this.updateDebugInfo('[ERROR] Error in groupMarket: ' + error.message);
+      return { byTicker: {}, tickers: [] };
+    }
   }
 
-  renderTimeSeries(elemId, byTicker, chosenTickers) {
+  renderTimeSeries(elemId, byTicker, chosenTickers, startDate = null, endDate = null) {
+    console.log(`[RENDER] Rendering time series for ${elemId}`);
+    console.log('[DATA] Available tickers:', Object.keys(byTicker));
+    console.log('[DATA] Chosen tickers:', chosenTickers);
+    console.log('[DATE] Date range:', startDate, 'to', endDate);
+    
     const traces = [];
     const selected = chosenTickers && chosenTickers.length ? chosenTickers : Object.keys(byTicker).slice(0, 5);
+    console.log('[SELECT] Selected tickers for rendering:', selected);
     
     for (const t of selected) {
       const s = byTicker[t];
-      if (!s) continue;
+      if (!s) {
+        console.warn(`[WARN] No data for ticker: ${t}`);
+        continue;
+      }
+      
+      // Filter data by date range if provided
+      let filteredDates = s.date;
+      let filteredCloses = s.close;
+      
+      if (startDate || endDate) {
+        const filteredData = this.filterDataByDateRange(s.date, s.close, startDate, endDate);
+        filteredDates = filteredData.dates;
+        filteredCloses = filteredData.closes;
+      }
+      
+      console.log(`[PROCESS] Processing ticker ${t}:`, filteredDates.length, 'data points');
+      
+      // Convert dates to proper format for Plotly
+      const plotlyDates = [];
+      const plotlyCloses = [];
+      
+      for (let i = 0; i < filteredDates.length; i++) {
+        try {
+          const dateStr = filteredDates[i];
+          const closeValue = filteredCloses[i];
+          
+          // Parse the date string - handle various formats and timezones
+          let date;
+          const hasT = /T/.test(dateStr);
+          const hasTimezone = /[\+\-]\d{2}:\d{2}$/.test(dateStr);
+          const hasSpace = /\s/.test(dateStr);
+          const isDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(dateStr);
+
+          if (hasT || hasTimezone) {
+            // ISO or has explicit timezone, normalize space to 'T' if present
+            const iso = hasSpace ? dateStr.replace(' ', 'T') : dateStr;
+            date = new Date(iso);
+          } else if (hasSpace) {
+            // Datetime without timezone
+            date = new Date(dateStr.replace(' ', 'T'));
+          } else if (isDateOnly) {
+            // Date only
+            date = new Date(dateStr + 'T00:00:00');
+          } else {
+            // Fallback
+            date = new Date(dateStr);
+          }
+          
+          if (isNaN(date.getTime())) {
+            console.warn(`[WARN] Invalid date format: ${dateStr}`);
+            continue;
+          }
+          
+          // Use date object directly for Plotly
+          plotlyDates.push(date);
+          plotlyCloses.push(closeValue);
+          
+        } catch (error) {
+          console.warn(`[WARN] Error parsing date: ${filteredDates[i]}`, error);
+          continue;
+        }
+      }
+      
+      if (plotlyDates.length === 0 || plotlyCloses.length === 0) {
+        console.warn(`[WARN] No valid data for ticker: ${t}`);
+        continue;
+      }
+      
+      // Ensure dates and closes arrays have same length
+      if (plotlyDates.length !== plotlyCloses.length) {
+        console.warn(`[WARN] Date/close length mismatch for ${t}:`, plotlyDates.length, 'vs', plotlyCloses.length);
+        continue;
+      }
+      
+      console.log(`[DATA] Valid data points for ${t}:`, plotlyDates.length, 'dates,', plotlyCloses.length, 'closes');
+      console.log(`[DATA] Date range for ${t}:`, plotlyDates[0], 'to', plotlyDates[plotlyDates.length - 1]);
+      console.log(`[DATA] Sample data for ${t}:`, {
+        firstDate: plotlyDates[0],
+        firstClose: plotlyCloses[0],
+        lastDate: plotlyDates[plotlyDates.length - 1],
+        lastClose: plotlyCloses[plotlyCloses.length - 1]
+      });
+      
       traces.push({
-        x: s.date,
-        y: s.close,
+        x: plotlyDates,
+        y: plotlyCloses,
         type: "scatter",
-        mode: "lines",
+        mode: "lines+markers",
         name: t,
         line: { width: 2 }
       });
     }
 
+    console.log(`[TRACE] Created ${traces.length} traces for ${elemId}`);
+    
+    // Check if we have any traces to render
+    if (traces.length === 0) {
+      console.warn(`[WARN] No traces to render for ${elemId}`);
+      this.updateDebugInfo(`[WARN] No data available for selected tickers`);
+      return;
+    }
+
+    // Dynamic layout based on date range
     const layout = {
-      margin: { t: 20, r: 10, b: 40, l: 45 },
-      xaxis: { title: "Date" },
-      yaxis: { title: "Close Price" },
+      title: `Market Data - ${selected.join(', ')}${startDate || endDate ? ` (${startDate || 'Start'} to ${endDate || 'End'})` : ''}`,
+      margin: { t: 40, r: 10, b: 60, l: 55 },
+      xaxis: { 
+        title: "Date",
+        type: 'date',
+        tickformat: '%Y-%m-%d',
+        tickangle: -45,
+        showgrid: true,
+        tickmode: 'auto',
+        nticks: 10,
+        rangeslider: { visible: false }
+      },
+      yaxis: { 
+        title: "Close Price",
+        showgrid: true
+      },
       hovermode: 'x unified',
-      showlegend: true
+      showlegend: true,
+      responsive: true
     };
 
-    Plotly.newPlot(elemId, traces, layout, { responsive: true });
+    try {
+      // Check if element exists
+      const element = document.getElementById(elemId);
+      if (!element) {
+        console.error(`[ERROR] Element ${elemId} not found`);
+        this.updateDebugInfo(`[ERROR] Element ${elemId} not found`);
+        return;
+      }
+      
+      // Check if Plotly is available
+      if (typeof Plotly === 'undefined') {
+        console.error('[ERROR] Plotly is not available');
+        this.updateDebugInfo('[ERROR] Plotly is not available');
+        return;
+      }
+      
+      console.log(`[PLOTLY] Rendering ${traces.length} traces to ${elemId}`);
+      console.log(`[PLOTLY] First trace data points:`, traces[0]?.x?.length || 0, 'dates,', traces[0]?.y?.length || 0, 'values');
+      
+      Plotly.newPlot(elemId, traces, layout, { responsive: true });
+      console.log(`[SUCCESS] Successfully rendered time series for ${elemId}`);
+      this.updateDebugInfo(`[SUCCESS] Successfully rendered time series for ${elemId}`);
+    } catch (error) {
+      console.error(`[ERROR] Error rendering time series for ${elemId}:`, error);
+      this.updateDebugInfo(`[ERROR] Error rendering time series: ${error.message}`);
+    }
+  }
+
+  /**
+   * Handle date range selection change
+   */
+  handleDateRangeChange() {
+    console.log('[DATE] Date range selection changed');
+    this.updateDebugInfo('[DATE] Date range selection changed');
+    
+    const dateRangeSelect = document.getElementById('date_range_select');
+    const customDateRange = document.getElementById('custom_date_range');
+    
+    if (!dateRangeSelect) {
+      console.warn('⚠️ Date range select not found');
+      return;
+    }
+    
+    // Show/hide custom date inputs
+    if (customDateRange) {
+      if (dateRangeSelect.value === 'custom') {
+        customDateRange.style.display = 'block';
+        console.log('[DATE] Custom date range inputs shown');
+      } else {
+        customDateRange.style.display = 'none';
+        console.log('[DATE] Custom date range inputs hidden');
+      }
+    }
+    
+    // Auto-update chart if market data is available
+    if (this.data.market && this.data.market.length > 0) {
+      try {
+        console.log('[DATE] Auto-updating chart with new date range...');
+        
+        // Get selected tickers
+        const tickerSelect = document.getElementById('market_ticker_select');
+        if (!tickerSelect) {
+          console.warn('[WARN] Market ticker select not found');
+          return;
+        }
+        
+        const selectedTickers = Array.from(tickerSelect.selectedOptions)
+          .map(option => option.value);
+        
+        if (selectedTickers.length === 0) {
+          console.warn('[WARN] No tickers selected for auto-update');
+          return;
+        }
+        
+        // Get new date range
+        const dateRange = this.getSelectedDateRange();
+        
+        // Update chart
+        const marketData = this.groupMarket(this.data.market);
+        this.renderTimeSeries('timeseries', marketData.byTicker, selectedTickers, dateRange.startDate, dateRange.endDate);
+        
+        console.log('[SUCCESS] Chart auto-updated with new date range');
+        this.updateDebugInfo('[SUCCESS] Chart auto-updated with new date range');
+      } catch (error) {
+        console.error('[ERROR] Error auto-updating chart:', error);
+        this.updateDebugInfo('[ERROR] Error auto-updating chart: ' + error.message);
+      }
+    }
+  }
+
+  /**
+   * Get selected date range
+   */
+  getSelectedDateRange() {
+    const dateRangeSelect = document.getElementById('date_range_select');
+    if (!dateRangeSelect) {
+      console.warn('⚠️ Date range select not found');
+      return { startDate: null, endDate: null };
+    }
+    
+    const selectedRange = dateRangeSelect.value;
+    console.log('[DATE] Selected date range:', selectedRange);
+    
+    if (selectedRange === 'custom') {
+      const startDate = document.getElementById('start_date')?.value;
+      const endDate = document.getElementById('end_date')?.value;
+      console.log('[DATE] Custom date range:', { startDate, endDate });
+      return { startDate, endDate };
+    }
+    
+    if (selectedRange === 'all') {
+      console.log('[DATE] All time range selected');
+      return { startDate: null, endDate: null };
+    }
+    
+    // Get the actual data range first
+    let dataEndDate = new Date();
+    if (this.data.market && this.data.market.length > 0) {
+      // Find the latest date in the data
+      const validDates = this.data.market
+        .map(row => {
+          try {
+            const date = new Date(row.date);
+            return isNaN(date.getTime()) ? null : date;
+          } catch (error) {
+            return null;
+          }
+        })
+        .filter(date => date !== null);
+      
+      if (validDates.length > 0) {
+        dataEndDate = validDates.sort((a, b) => b - a)[0];
+        console.log('[DATE] Latest date in data:', dataEndDate.toISOString().split('T')[0]);
+      }
+    }
+    
+    let startDate = new Date(dataEndDate);
+    
+    switch (selectedRange) {
+      case '1year':
+        startDate.setFullYear(dataEndDate.getFullYear() - 1);
+        break;
+      case '6months':
+        startDate.setMonth(dataEndDate.getMonth() - 6);
+        break;
+      case '3months':
+        startDate.setMonth(dataEndDate.getMonth() - 3);
+        break;
+      case '1month':
+        startDate.setMonth(dataEndDate.getMonth() - 1);
+        break;
+      default:
+        console.warn('[WARN] Unknown date range:', selectedRange);
+        return { startDate: null, endDate: null };
+    }
+    
+    const result = {
+      startDate: startDate.toISOString().split('T')[0],
+      endDate: dataEndDate.toISOString().split('T')[0]
+    };
+    
+    console.log('[DATE] Calculated date range:', result);
+    return result;
+  }
+
+  /**
+   * Set default tickers in select element
+   */
+  setDefaultTickers(defaultTickers) {
+    const tickerSelect = document.getElementById('market_ticker_select');
+    if (!tickerSelect) {
+      console.warn('[WARN] Market ticker select element not found');
+      this.updateDebugInfo('[WARN] Market ticker select element not found');
+      return;
+    }
+    
+    if (!defaultTickers || !Array.isArray(defaultTickers) || defaultTickers.length === 0) {
+      console.warn('[WARN] No default tickers provided');
+      this.updateDebugInfo('[WARN] No default tickers provided');
+      return;
+    }
+    
+    try {
+      // Wait a bit for options to be populated
+      setTimeout(() => {
+        // Clear previous selections
+        Array.from(tickerSelect.options).forEach(option => {
+          option.selected = false;
+        });
+        
+        // Select default tickers
+        let selectedCount = 0;
+        defaultTickers.forEach(ticker => {
+          const option = Array.from(tickerSelect.options).find(opt => opt.value === ticker);
+          if (option) {
+            option.selected = true;
+            selectedCount++;
+          }
+        });
+        
+        console.log(`[SELECT] Default tickers set in select element: ${selectedCount}/${defaultTickers.length}`, defaultTickers);
+        this.updateDebugInfo(`[SELECT] Default tickers set: ${selectedCount}/${defaultTickers.length} (${defaultTickers.join(', ')})`);
+      }, 100);
+    } catch (error) {
+      console.error('[ERROR] Error setting default tickers:', error);
+      this.updateDebugInfo('[ERROR] Error setting default tickers: ' + error.message);
+    }
+  }
+
+  /**
+   * Set default date range based on available data
+   */
+  setDefaultDateRange() {
+    console.log('[DATE] Setting default date range...');
+    
+    if (!this.data.market || this.data.market.length === 0) {
+      console.warn('[WARN] No market data available for setting default date range');
+      return;
+    }
+    
+    try {
+      // Get all unique dates and sort them
+      const dates = this.data.market
+        .map(row => row.date)
+        .filter(Boolean)
+        .map(dateStr => {
+          // Parse the date string to get a proper Date object
+          const date = new Date(dateStr);
+          return isNaN(date.getTime()) ? null : date;
+        })
+        .filter(date => date !== null);
+      
+      if (dates.length === 0) {
+        console.warn('[WARN] No valid dates found in market data');
+        return;
+      }
+      
+      // Sort dates
+      dates.sort((a, b) => a - b);
+      const startDate = dates[0];
+      const endDate = dates[dates.length - 1];
+      
+      console.log('[DATE] Data date range:', { 
+        start: startDate.toISOString().split('T')[0], 
+        end: endDate.toISOString().split('T')[0],
+        totalDays: dates.length
+      });
+      
+      // Set date inputs for custom range
+      const startDateInput = document.getElementById('start_date');
+      const endDateInput = document.getElementById('end_date');
+      
+      if (startDateInput && endDateInput) {
+        startDateInput.value = startDate.toISOString().split('T')[0];
+        endDateInput.value = endDate.toISOString().split('T')[0];
+        console.log('[DATE] Default date inputs set:', startDateInput.value, 'to', endDateInput.value);
+      }
+      
+      // Set default date range select to "All Time"
+      const dateRangeSelect = document.getElementById('date_range_select');
+      if (dateRangeSelect) {
+        dateRangeSelect.value = 'all';
+        console.log('[DATE] Default date range select set to "All Time"');
+      }
+      
+      this.updateDebugInfo(`[DATE] Date range: ${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]} (${dates.length} days)`);
+    } catch (error) {
+      console.error('[ERROR] Error setting default date range:', error);
+      this.updateDebugInfo('[ERROR] Error setting default date range: ' + error.message);
+    }
+  }
+
+  /**
+   * Filter data by date range
+   */
+  filterDataByDateRange(dates, values, startDate, endDate) {
+    console.log('[DATE] Filtering data by date range:', { startDate, endDate, totalDates: dates.length });
+    
+    if (!startDate && !endDate) {
+      console.log('[DATE] No date filtering applied');
+      return { dates, closes: values };
+    }
+    
+    const filteredDates = [];
+    const filteredValues = [];
+    
+    // Parse start and end dates with proper timezone handling
+    const start = startDate ? new Date(startDate + 'T00:00:00Z') : null;
+    const end = endDate ? new Date(endDate + 'T23:59:59Z') : null;
+    
+    console.log('[DATE] Parsed date range:', { start, end });
+    
+    for (let i = 0; i < dates.length; i++) {
+      try {
+        // Parse the date string (handle various formats)
+        let currentDate;
+        const dateStr = dates[i];
+        
+        if (dateStr.includes('+08:00') || dateStr.includes('T')) {
+          // Handle ISO format with timezone: "2025-02-28 00:00:00+08:00"
+          currentDate = new Date(dateStr);
+        } else if (dateStr.includes(' ')) {
+          // Handle datetime format without timezone
+          currentDate = new Date(dateStr);
+        } else {
+          // Handle date-only format
+          currentDate = new Date(dateStr + 'T00:00:00Z');
+        }
+        
+        // Check if date is valid
+        if (isNaN(currentDate.getTime())) {
+          console.warn('[WARN] Invalid date format:', dateStr);
+          continue;
+        }
+        
+        let include = true;
+        
+        // Compare dates (normalize to UTC for comparison)
+        if (start && currentDate < start) {
+          include = false;
+        }
+        
+        if (end && currentDate > end) {
+          include = false;
+        }
+        
+        if (include) {
+          filteredDates.push(dateStr);
+          filteredValues.push(values[i]);
+        }
+      } catch (error) {
+        console.warn('[WARN] Error parsing date:', dates[i], error);
+      }
+    }
+    
+    console.log(`[DATE] Filtered ${dates.length} dates to ${filteredDates.length} dates`);
+    this.updateDebugInfo(`[DATE] Date filtering: ${dates.length} → ${filteredDates.length} dates`);
+    
+    // If no data after filtering, return original data with warning
+    if (filteredDates.length === 0) {
+      console.warn('[WARN] No data after filtering, returning original data');
+      this.updateDebugInfo('[WARN] No data after filtering, showing all data');
+      return { dates, closes: values };
+    }
+    
+    return { dates: filteredDates, closes: filteredValues };
   }
 
   buildFutureMatrix(rows) {
@@ -295,6 +1664,9 @@ class StockDashboard {
     // Portfolio value chart
     const sameMarket = this.data.result.filter(r => r.market === (rows[0]?.market ?? rows[0]?.market));
     this.renderPortfolioValue("portfolio_value", sameMarket.length ? sameMarket : this.data.result);
+
+    // Recompute performance metrics using current selections
+    this.calculatePortfolioMetrics(rows);
   }
 
   renderPortfolioBars(elemId, tickers, weights, title = "Weights") {
@@ -316,37 +1688,158 @@ class StockDashboard {
     Plotly.newPlot(elemId, [trace], layout, { responsive: true });
   }
 
-  renderPortfolioValue(elemId, rows) {
+  renderPortfolioValue(elemId, rows, marketName, startDate = null, endDate = null) {
+    // Normalize to starting value = 1 for comparison
     rows = rows.filter(r => r.date && r["Final Portfolio Value"] != null && r.model);
     rows.sort((a, b) => new Date(a.date) - new Date(b.date));
-    
-    const byModel = {};
-    for (const r of rows) {
-      if (!byModel[r.model]) byModel[r.model] = { x: [], y: [] };
-      byModel[r.model].x.push(r.date);
-      byModel[r.model].y.push(r["Final Portfolio Value"]);
+
+    if (!rows.length) {
+      Plotly.purge(elemId);
+      return;
     }
 
-    const traces = Object.entries(byModel).map(([m, s]) => ({
-      type: "scatter",
-      mode: "lines",
-      name: m,
-      x: s.x,
-      y: s.y,
-      line: { width: 2 }
-    }));
-
-    const layout = {
-      margin: { t: 20, r: 10, b: 40, l: 50 },
-      xaxis: { title: "Date" },
-      yaxis: { title: "Final Portfolio Value" },
-      title: "Portfolio Performance by Model"
+    const pvFirst = rows[0]["Final Portfolio Value"];
+    const pvTrace = {
+      type: 'scatter', mode: 'lines', name: 'Portfolio',
+      x: rows.map(r => r.date),
+      y: rows.map(r => r["Final Portfolio Value"] / pvFirst),
+      line: { width: 3, color: '#2563eb' }
     };
 
+    // Benchmark from test.csv for same market
+    let bench = this.data.test
+      .filter(t => t.market === marketName && t.date && t.close != null)
+      .sort((a,b)=>new Date(a.date)-new Date(b.date));
+    if (startDate) bench = bench.filter(b => new Date(b.date) >= new Date(startDate));
+    if (endDate) bench = bench.filter(b => new Date(b.date) <= new Date(endDate));
+    let benchTrace = null;
+    if (bench.length) {
+      const bFirst = bench[0].close;
+      benchTrace = {
+        type: 'scatter', mode: 'lines', name: `${marketName.toUpperCase()} Index`,
+        x: bench.map(b => b.date),
+        y: bench.map(b => b.close / bFirst),
+        line: { width: 2, dash: 'dash', color: '#111827' }
+      };
+    }
+
+    const traces = benchTrace ? [pvTrace, benchTrace] : [pvTrace];
+    const layout = {
+      margin: { t: 30, r: 10, b: 50, l: 60 },
+      xaxis: { title: 'Date' },
+      yaxis: { title: 'Cumulative Return (Normalized to 1.0)' },
+      title: `Portfolio vs ${marketName ? marketName.toUpperCase() : 'Index'}`,
+      hovermode: 'x unified', showlegend: true
+    };
     Plotly.newPlot(elemId, traces, layout, { responsive: true });
+
+    // Update short LLM-like comment
+    try {
+      const commentEl = document.getElementById('performance_comment');
+      const summaryEl = document.getElementById('performance_summary');
+      if (commentEl) {
+        const endPv = rows[rows.length-1]["Final Portfolio Value"]/rows[0]["Final Portfolio Value"]-1;
+        let benchRet = null;
+        let bStart = null, bEnd = null;
+        if (bench && bench.length) {
+          bStart = bench[0].close; bEnd = bench[bench.length-1].close;
+          benchRet = bEnd/bStart - 1;
+        }
+        if (benchRet!=null) {
+          const diff = endPv - benchRet;
+          commentEl.textContent = diff>=0
+            ? `The portfolio outperformed ${marketName.toUpperCase()} by ${ (diff*100).toFixed(2) } percentage points over the selected period.`
+            : `The portfolio underperformed ${marketName.toUpperCase()} by ${ Math.abs(diff*100).toFixed(2) } percentage points.`;
+        } else {
+          commentEl.textContent = `Portfolio cumulative return is ${(endPv*100).toFixed(2)}% over the selected period.`;
+        }
+
+        // Build detailed Performance Summary (Portfolio vs Index)
+        if (summaryEl) {
+          const portfolioReturns = rows.map((v,i,a)=> i>0 ? (a[i]["Final Portfolio Value"]-a[i-1]["Final Portfolio Value"]) / a[i-1]["Final Portfolio Value"] : null).filter(v=>v!=null);
+          const avgDaily = this.calcAvgDaily(portfolioReturns);
+          const volAnn = this.calcVolAnnual(portfolioReturns);
+          const sharpe = volAnn===0?0: (avgDaily*252)/volAnn;
+          const mdd = this.calcMaxDrawdown(rows.map(r=>r["Final Portfolio Value"]))
+          let idxSummary = { start: '-', end: '-', avg: '-', vol: '-', sharpe: '-', mdd: '-' };
+          if (bench && bench.length) {
+            const idxReturns = bench.map((v,i,a)=> i>0 ? (a[i].close-a[i-1].close)/a[i-1].close : null).filter(v=>v!=null);
+            idxSummary = {
+              start: bStart?.toFixed(2),
+              end: bEnd?.toFixed(2) + ` (Change: ${(benchRet*100).toFixed(2)}%)`,
+              avg: (this.calcAvgDaily(idxReturns)*100).toFixed(2)+"%",
+              vol: (this.calcVolAnnual(idxReturns)*100).toFixed(2)+"%",
+              sharpe: (this.sharpeFromReturns(idxReturns)).toFixed(2),
+              mdd: (this.calcMaxDrawdown(bench.map(b=>b.close))*100).toFixed(2)+"%"
+            };
+          }
+          summaryEl.innerHTML = `
+            <div class="summary-card">
+              <div class="summary-title">Portfolio Summary</div>
+              <div class="summary-row"><strong>Start Value:</strong> 1.00</div>
+              <div class="summary-row"><strong>Portfolio Value:</strong> ${(rows[rows.length-1]["Final Portfolio Value"]).toFixed(2)} (Change: ${(endPv*100).toFixed(2)}%)</div>
+              <div class="summary-row"><strong>Average Daily Return:</strong> ${(avgDaily*100).toFixed(2)}%</div>
+              <div class="summary-row"><strong>Annualized Volatility:</strong> ${(volAnn*100).toFixed(2)}%</div>
+              <div class="summary-row"><strong>Sharpe Ratio:</strong> ${sharpe.toFixed(2)}</div>
+              <div class="summary-row"><strong>Maximum Drawdown:</strong> ${(mdd*100).toFixed(2)}%</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-title">Index Summary</div>
+              <div class="summary-row"><strong>Start Value (Index):</strong> ${bStart?bStart.toFixed(2):'-'}</div>
+              <div class="summary-row"><strong>End Value (Index):</strong> ${idxSummary.end}</div>
+              <div class="summary-row"><strong>Average Daily Return (Index):</strong> ${idxSummary.avg}</div>
+              <div class="summary-row"><strong>Annualized Volatility (Index):</strong> ${idxSummary.vol}</div>
+              <div class="summary-row"><strong>Sharpe Ratio (Index):</strong> ${idxSummary.sharpe}</div>
+              <div class="summary-row"><strong>Maximum Drawdown (Index):</strong> ${idxSummary.mdd}</div>
+            </div>`;
+
+          // Update KPI tiles at top (CAGR, Sortino, TE, IR, Alpha/Beta/R2)
+          const cagr = Math.pow(1+endPv, Math.max(1, 252/Math.max(1, portfolioReturns.length))) - 1;
+          const downside = portfolioReturns.filter(r=>r<0);
+          const sortino = downside.length ? (avgDaily*252)/(this.calcVolAnnual(downside)) : 0;
+          let te = null, ir = null, alpha=null, beta=null, r2=null;
+          if (bench && bench.length) {
+            const idxReturns = bench.map((v,i,a)=> i>0 ? (a[i].close-a[i-1].close)/a[i-1].close : null).filter(v=>v!=null);
+            const slicedPv = portfolioReturns.slice(-idxReturns.length);
+            const diff = slicedPv.map((v,i)=> v - idxReturns[i]);
+            te = this.calcVolAnnual(diff);
+            const annPort = avgDaily*252;
+            const annBench = this.calcAvgDaily(idxReturns)*252;
+            ir = te===0?0:( (annPort - annBench) / te );
+            // OLS beta, alpha, r2
+            const meanP = this.calcAvgDaily(slicedPv), meanB = this.calcAvgDaily(idxReturns);
+            let cov=0, varB=0; for (let i=0;i<slicedPv.length;i++){ cov += (slicedPv[i]-meanP)*(idxReturns[i]-meanB); varB += Math.pow(idxReturns[i]-meanB,2);} cov/=slicedPv.length; varB/=idxReturns.length;
+            beta = varB===0?0: cov/varB; alpha = (meanP - beta*meanB)*252; // approximate annual alpha
+            // r2
+            const varP = this.calcVolAnnual(slicedPv)/Math.sqrt(252); // daily variance proxy
+            r2 = varP===0?0: Math.min(1, Math.max(0, (beta*beta*varB)/(varP*varP)));
+          }
+          const setText = (id, val) => { const el=document.getElementById(id); if (el) el.textContent = val; };
+          setText('cagr', isFinite(cagr)? (cagr*100).toFixed(2)+'%':'-');
+          setText('sortino_ratio', isFinite(sortino)? sortino.toFixed(2):'-');
+          setText('tracking_error', te!=null? (te*100).toFixed(2)+'%':'-');
+          setText('information_ratio', ir!=null? ir.toFixed(2):'-');
+          setText('alpha_metric', alpha!=null? (alpha*100).toFixed(2)+'%':'-');
+          setText('beta_metric', beta!=null? beta.toFixed(2):'-');
+          setText('r2_metric', r2!=null? r2.toFixed(2):'-');
+        }
+      }
+    } catch(_) {}
   }
 
+  // Helpers for performance summary
+  // Expose metric helpers as methods on the dashboard instance to avoid scope issues
+  calcAvgDaily(returns) { if (!returns?.length) return 0; return returns.reduce((a,b)=>a+b,0)/returns.length; }
+  calcVolAnnual(returns) { if (!returns?.length) return 0; const mean = this.calcAvgDaily(returns); const varr = returns.reduce((a,b)=>a+Math.pow(b-mean,2),0)/returns.length; return Math.sqrt(varr)*Math.sqrt(252); }
+  calcMaxDrawdown(series) { if (!series?.length) return 0; let peak = series[0]; let maxDD = 0; for (const v of series) { peak = Math.max(peak, v); maxDD = Math.min(maxDD, (v-peak)/peak); } return Math.abs(maxDD); }
+  sharpeFromReturns(rets) { const m = this.calcAvgDaily(rets); const v = this.calcVolAnnual(rets); return v===0?0:(m*252)/v; }
+
   renderIndexSeries(elemId, rows, marketName) {
+    if (!rows || !rows.length) {
+      const el = document.getElementById(elemId);
+      if (el) el.innerHTML = '<div style="padding:12px;color:#6b7280">No index data available.</div>';
+      return;
+    }
     let data = rows;
     if (marketName) data = rows.filter(r => r.market === marketName);
     data = data.filter(r => r.date && r.close != null);
@@ -368,18 +1861,41 @@ class StockDashboard {
       title: `${marketName || 'Index'} Time Series`
     };
 
-    Plotly.newPlot(elemId, [trace], layout, { responsive: true });
+    const el = document.getElementById(elemId);
+    if (!el) return;
+    Plotly.newPlot(elemId, [trace], layout, { responsive: true }).then(() => {
+      if (Plotly.Plots?.resize) Plotly.Plots.resize(el);
+    });
   }
 
   populateSelect(selectId, options) {
     const select = document.getElementById(selectId);
-    select.innerHTML = '';
-    options.forEach(option => {
-      const opt = document.createElement('option');
-      opt.value = option;
-      opt.textContent = option;
-      select.appendChild(opt);
-    });
+    if (!select) {
+      console.error(`❌ Select element ${selectId} not found`);
+      this.updateDebugInfo(`❌ Select element ${selectId} not found`);
+      return;
+    }
+    
+    if (!options || !Array.isArray(options) || options.length === 0) {
+      console.warn(`⚠️ No options provided for ${selectId}`);
+      this.updateDebugInfo(`⚠️ No options provided for ${selectId}`);
+      return;
+    }
+    
+    try {
+      select.innerHTML = '';
+      options.forEach(option => {
+        const opt = document.createElement('option');
+        opt.value = option;
+        opt.textContent = option;
+        select.appendChild(opt);
+      });
+      console.log(`✅ Populated ${selectId} with ${options.length} options`);
+      this.updateDebugInfo(`✅ Populated ${selectId} with ${options.length} options`);
+    } catch (error) {
+      console.error(`❌ Error populating ${selectId}:`, error);
+      this.updateDebugInfo(`❌ Error populating ${selectId}: ${error.message}`);
+    }
   }
 
   sanitizePortfolioString(s) {
@@ -403,50 +1919,164 @@ class StockDashboard {
     document.body.appendChild(errorDiv);
   }
 
-  // Tab Navigation
-  setupTabNavigation() {
-    const tabButtons = document.querySelectorAll('.tab-button');
-    const tabContents = document.querySelectorAll('.tab-content');
+  updateDebugInfo(message) {
+    const debugDiv = document.getElementById('debug-info');
+    if (debugDiv) {
+      debugDiv.innerHTML += `<div>${new Date().toLocaleTimeString()}: ${message}</div>`;
+    }
+  }
 
-    tabButtons.forEach(button => {
-      button.addEventListener('click', () => {
-        const targetTab = button.getAttribute('data-tab');
-        
-        // Remove active class from all tabs and contents
-        tabButtons.forEach(btn => btn.classList.remove('active'));
-        tabContents.forEach(content => content.classList.remove('active'));
-        
-        // Add active class to clicked tab and corresponding content
-        button.classList.add('active');
-        document.getElementById(targetTab).classList.add('active');
-        
-        this.currentTab = targetTab;
-        this.onTabChange(targetTab);
-      });
+  /**
+   * Test render function
+   */
+  testRender() {
+    console.log('🧪 Testing render...');
+    this.updateDebugInfo('🧪 Testing render...');
+    
+    // Test if data is available
+    console.log('📊 Data status:', {
+      market: this.data.market?.length || 0,
+      marketPast: this.data.marketPast?.length || 0,
+      future: this.data.future?.length || 0,
+      result: this.data.result?.length || 0,
+      test: this.data.test?.length || 0
     });
+    
+    this.updateDebugInfo(`📊 Data status: market=${this.data.market?.length || 0}, future=${this.data.future?.length || 0}, result=${this.data.result?.length || 0}, test=${this.data.test?.length || 0}`);
+    
+    // Test if Plotly is available
+    if (typeof Plotly !== 'undefined') {
+      console.log('✅ Plotly is available');
+      this.updateDebugInfo('✅ Plotly is available');
+    } else {
+      console.error('❌ Plotly is not available');
+      this.updateDebugInfo('❌ Plotly is not available');
+    }
+    
+    // Test if elements exist
+    const timeseriesDiv = document.getElementById('timeseries');
+    if (timeseriesDiv) {
+      console.log('✅ Timeseries div exists');
+      this.updateDebugInfo('✅ Timeseries div exists');
+    } else {
+      console.error('❌ Timeseries div not found');
+      this.updateDebugInfo('❌ Timeseries div not found');
+    }
+  }
+
+  /**
+   * Force render function
+   */
+  forceRender() {
+    console.log('🚀 Force rendering...');
+    this.updateDebugInfo('🚀 Force rendering...');
+    
+    try {
+      // Force render market data
+      if (this.data.market && this.data.market.length > 0) {
+        try {
+          const marketData = this.groupMarket(this.data.market);
+          if (marketData.tickers && marketData.tickers.length > 0) {
+            const defaultTickers = marketData.tickers.slice(0, 5);
+            const dateRange = this.getSelectedDateRange();
+            this.renderTimeSeries('timeseries', marketData.byTicker, defaultTickers, dateRange.startDate, dateRange.endDate);
+            console.log('✅ Force rendered market data');
+            this.updateDebugInfo('✅ Force rendered market data');
+          } else {
+            console.warn('⚠️ No tickers available for force render');
+            this.updateDebugInfo('⚠️ No tickers available for force render');
+          }
+        } catch (error) {
+          console.error('❌ Error force rendering market data:', error);
+          this.updateDebugInfo('❌ Error force rendering market data: ' + error.message);
+        }
+      } else {
+        console.warn('⚠️ No market data to force render');
+        this.updateDebugInfo('⚠️ No market data to force render');
+      }
+      
+      // Force render future heatmap
+      if (this.data.future && this.data.future.length > 0) {
+        const futureData = this.buildFutureMatrix(this.data.future);
+        this.renderHeatmap('heatmap', futureData);
+        console.log('✅ Force rendered future heatmap');
+        this.updateDebugInfo('✅ Force rendered future heatmap');
+      }
+      
+      // Force render index series
+      if (this.data.test && this.data.test.length > 0) {
+        const indexMarkets = this.unique(this.data.test.map(r => r.market).filter(Boolean)).sort();
+        const defaultMarket = indexMarkets[0];
+        this.renderIndexSeries('index_series', this.data.test, defaultMarket);
+        console.log('✅ Force rendered index series');
+        this.updateDebugInfo('✅ Force rendered index series');
+      }
+      
+    } catch (error) {
+      console.error('❌ Error in force render:', error);
+      this.updateDebugInfo('❌ Error in force render: ' + error.message);
+    }
+  }
+
+  // Tab Navigation (simplified)
+  setupTabNavigation() {
+    console.log('🔧 Setting up tab navigation...');
+    // Tab navigation is now handled by inline JavaScript in HTML
+    console.log('✅ Tab navigation setup complete');
   }
 
   onTabChange(tabName) {
+    console.log('🔄 Tab changed to:', tabName);
+    this.updateDebugInfo(`🔄 Tab changed to: ${tabName}`);
+    
     switch(tabName) {
       case 'analysis':
+        console.log('🔍 Initializing Analysis tab...');
         this.initializeAnalysisTab();
         break;
       case 'portfolio':
+        console.log('💼 Initializing Portfolio tab...');
         this.initializePortfolioTab();
         break;
       case 'risk':
+        console.log('⚠️ Initializing Risk tab...');
         this.initializeRiskTab();
         break;
+      case 'dashboard':
+        console.log('📊 Dashboard tab active');
+        // Re-render Index Time Series when the tab becomes visible to avoid zero-size plots
+        try {
+          if (this.data?.test?.length) {
+            const idxSel = document.getElementById('index_market_select');
+            const mkt = idxSel?.value || (this.unique(this.data.test.map(r=>r.market).filter(Boolean)).sort()[0]);
+            this.renderIndexSeries('index_series', this.data.test, mkt);
+            const elem = document.getElementById('index_series');
+            if (elem && window.Plotly && Plotly.Plots?.resize) {
+              Plotly.Plots.resize(elem);
+            }
+          }
+        } catch (e) {
+          console.warn('⚠️ Failed to refresh Index Time Series on tab change:', e.message);
+        }
+        break;
+      default:
+        console.log('❓ Unknown tab:', tabName);
     }
   }
 
   // Analysis Tab Methods
   initializeAnalysisTab() {
-    const marketData = this.groupMarket(this.data.market);
-    this.populateSelect('tech_ticker_select', marketData.tickers);
-    this.populateSelect('candle_ticker_select', marketData.tickers);
-    this.populateSelect('volume_ticker_select', marketData.tickers);
-    this.populateSelect('correlation_tickers', marketData.tickers);
+    console.log('🔍 Initializing Analysis tab...');
+    try {
+      const marketData = this.groupMarket(this.data.market);
+      this.populateSelect('tech_ticker_select', marketData.tickers);
+      this.populateSelect('candle_ticker_select', marketData.tickers);
+      this.populateSelect('volume_ticker_select', marketData.tickers);
+      this.populateSelect('correlation_tickers', marketData.tickers);
+      console.log('✅ Analysis tab initialized');
+    } catch (error) {
+      console.error('❌ Error initializing Analysis tab:', error);
+    }
   }
 
   updateTechnicalAnalysis() {
@@ -507,7 +2137,380 @@ class StockDashboard {
 
   // Portfolio Tab Methods
   initializePortfolioTab() {
-    this.calculatePortfolioMetrics();
+    console.log('💼 Initializing Portfolio tab...');
+    try {
+      // Populate market/model/date controls from result.csv
+      const markets = this.unique(this.data.result.map(r => r.market).filter(Boolean)).sort();
+      this.populateSelect('portfolio_market_select', markets);
+
+      const modelSel = document.getElementById('model_select');
+      const dateSel = document.getElementById('date_select');
+      const marketSel = document.getElementById('portfolio_market_select');
+
+      const models = this.unique(this.data.result.map(r => r.model).filter(Boolean)).sort();
+      this.populateSelect('model_select', models);
+
+      // Set defaults: market=kospi, model=itransformer if available
+      const marketEl = document.getElementById('portfolio_market_select');
+      const modelEl = document.getElementById('model_select');
+      if (marketEl) {
+        const preferredMarket = markets.includes('kospi') ? 'kospi' : markets[0];
+        marketEl.value = preferredMarket;
+      }
+      if (modelEl) {
+        const preferredModel = models.includes('itransformer') ? 'itransformer' : models[0];
+        modelEl.value = preferredModel;
+      }
+
+      // Set default market to first; set start/end date inputs to market+model range
+      const applyMarketDates = () => {
+        const mkt = marketSel?.value || (markets.includes('kospi') ? 'kospi' : markets[0]);
+        const mdl = (document.getElementById('model_select')||{}).value ||
+                    (models.includes('itransformer') ? 'itransformer' : models[0]);
+        let rows = this.data.result.filter(r => r.market === mkt && r.model === mdl && r.date);
+        if (rows.length === 0) rows = this.data.result.filter(r => r.market === mkt && r.date);
+        rows.sort((a, b) => new Date(a.date) - new Date(b.date));
+        const start = rows[0]?.date; const end = rows[rows.length - 1]?.date;
+        const sEl = document.getElementById('portfolio_start_date');
+        const eEl = document.getElementById('portfolio_end_date');
+        if (start && end && sEl && eEl) { sEl.value = start.slice(0,10); eEl.value = end.slice(0,10); }
+      };
+      applyMarketDates();
+
+      // Bind update button to re-render all portfolio views by selections
+      const updateBtn = document.getElementById('update_result_btn');
+      if (updateBtn) {
+        updateBtn.addEventListener('click', () => this.updatePortfolioViews());
+      }
+
+      // When market or model changes, reset default period to full available range
+      if (marketSel) marketSel.addEventListener('change', () => { applyMarketDates(); });
+      if (modelSel) modelSel.addEventListener('change', () => { applyMarketDates(); });
+
+      // Also recalc metrics initially
+      this.updatePortfolioViews();
+      
+      // Render selection-aware features (only panels that exist)
+      console.log('🔬 Rendering DeepAries features...');
+      this.renderRebalancingTimeline();
+      this.renderRebalancingFrequency();
+      this.renderMarketConditionDetection();
+      
+      console.log('✅ Portfolio tab initialized');
+    } catch (error) {
+      console.error('❌ Error initializing Portfolio tab:', error);
+    }
+  }
+
+  updatePortfolioViews() {
+    try {
+      const marketSel = document.getElementById('portfolio_market_select');
+      const modelSel = document.getElementById('model_select');
+      const sEl = document.getElementById('portfolio_start_date');
+      const eEl = document.getElementById('portfolio_end_date');
+      const market = marketSel?.value;
+      const model = modelSel?.value;
+      const start = sEl?.value || null;
+      const end = eEl?.value || null;
+
+      // Filter result rows by market/model/date
+      let rows = this.data.result.filter(r => r.market === market && r.model === model);
+      if (start) rows = rows.filter(r => new Date(r.date) >= new Date(start));
+      if (end) rows = rows.filter(r => new Date(r.date) <= new Date(end));
+
+      // Update performance summary & KPI tiles from filtered rows
+      if (rows.length) {
+        const series = rows
+          .filter(r => r.date && r['Final Portfolio Value']!=null)
+          .sort((a,b)=>new Date(a.date)-new Date(b.date));
+        this.calculatePortfolioMetrics(series);
+        this.renderPortfolioValue('portfolio_value', series, market, start, end);
+      } else {
+        // no data for selection: show dashes
+        ['total_return','sharpe_ratio','max_drawdown','volatility'].forEach(id=>{
+          const el=document.getElementById(id); if(el) el.textContent='-';
+        });
+      }
+
+      // Render adaptive rebalancing allocations (paged)
+      this.renderAdaptiveRebalancingAllocations(rows, { market, model, start, end });
+
+      // Render latest allocation pie near end date
+      this.renderLatestAllocationPie(rows, end || null, model, market);
+
+      // Also update timeline/frequency/market condition panels to reflect selection
+      this.renderRebalancingTimeline();
+      this.renderRebalancingFrequency();
+      this.renderMarketConditionDetection();
+
+      // Brief performance commentary
+      try {
+        const pv = rows.filter(r=>r['Final Portfolio Value']!=null).sort((a,b)=>new Date(a.date)-new Date(b.date));
+        if (pv.length) {
+          const pvRet = pv[pv.length-1]['Final Portfolio Value']/pv[0]['Final Portfolio Value']-1;
+          const bench = this.data.test.filter(t=>t.market===market && t.date).sort((a,b)=>new Date(a.date)-new Date(b.date));
+          const bStart = bench.find(b=>!start || new Date(b.date)>=new Date(start));
+          const bEnd = [...bench].reverse().find(b=>!end || new Date(b.date)<=new Date(end));
+          let benchRet = null;
+          if (bStart && bEnd) benchRet = bEnd.close/bStart.close - 1;
+          const meta = document.getElementById('portfolio_meta');
+          if (meta) {
+            const diff = benchRet!=null ? (pvRet-benchRet) : null;
+            meta.textContent = benchRet!=null
+              ? `Performance: Portfolio ${ (pvRet*100).toFixed(2) }% vs ${market.toUpperCase()} Index ${ (benchRet*100).toFixed(2) }% (${ diff>=0? 'Outperformed':'Underperformed' } by ${Math.abs(diff*100).toFixed(2)} pp)`
+              : `Performance: Portfolio ${ (pvRet*100).toFixed(2) }% (benchmark unavailable)`;
+          }
+        }
+      } catch(_) {}
+    } catch (e) {
+      console.error('❌ updatePortfolioViews failed:', e);
+    }
+  }
+
+  renderAdaptiveRebalancingAllocations(rows, context={}) {
+    if (!rows || rows.length === 0) return;
+
+    // Sort by date and identify distinct rebalance days within selected period
+    const sorted = [...rows].sort((a,b)=>new Date(a.date)-new Date(b.date));
+    const pageEvents = sorted.filter((r, idx, arr) => idx===0 || r.date !== arr[idx-1].date);
+
+    // Build the set of symbols that appear in top-5 at any rebalance date
+    const allSymbolsSet = new Set();
+    pageEvents.forEach(row => {
+      const pr = this.sanitizePortfolioString(row.portfolio_ratio);
+      if (!pr || !pr.all) return;
+      Object.entries(pr.all)
+        .sort((a,b)=>b[1]-a[1])
+        .slice(0,5)
+        .forEach(([t])=> allSymbolsSet.add(t));
+    });
+    const allSymbols = Array.from(allSymbolsSet);
+
+    // Create one stacked-bar trace per symbol across all rebalance dates (all events used)
+    const dates = pageEvents.map(e=>e.date);
+    const traces = allSymbols.map(sym => {
+      const y = dates.map((d, idx) => {
+        const pr = this.sanitizePortfolioString(pageEvents[idx].portfolio_ratio);
+        if (!pr || !pr.all) return 0;
+        // weight only if symbol is within top-5 for that date
+        const top = Object.entries(pr.all).sort((a,b)=>b[1]-a[1]).slice(0,5);
+        const w = top.find(([t])=>t===sym)?.[1] || 0;
+        return w;
+      });
+      return {
+        type:'bar',
+        name: sym,
+        x: dates,
+        y: y,
+        hovertemplate: `${sym}<br>Weight: %{y:.1%}<br>Date: %{x}<extra></extra>`
+      };
+    });
+
+    // Build monthly first-trading-day tick labels (use first event found each month)
+    const monthlyTicks = [];
+    const monthlyText = [];
+    const seenMonth = new Set();
+    for (const d of dates) {
+      const dt = new Date(d);
+      const key = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`;
+      if (!seenMonth.has(key)) {
+        seenMonth.add(key);
+        monthlyTicks.push(d);
+        monthlyText.push(`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-01`);
+      }
+    }
+
+    const layout = {
+      barmode: 'stack',
+      title: `Adaptive Rebalancing Allocation (${context.market||''} • ${context.model||''})`,
+      xaxis: { title: 'Rebalancing Date (Investment Time)', tickvals: monthlyTicks, ticktext: monthlyText },
+      yaxis: { title: 'Investment Ratio of Top-5 Stocks', range: [0,1] },
+      margin: { t: 40, r: 10, b: 60, l: 60 },
+      showlegend: true
+    };
+
+    // Split the full period into 6‑month windows and render multiple stacked charts vertically
+    const container = document.getElementById('rebalancing_allocations');
+    if (!container) return;
+    container.innerHTML = '';
+
+    // Build 6‑month windows
+    const allDates = dates.map(d=>new Date(d));
+    const startDate = allDates[0];
+    const endDate = allDates[allDates.length-1];
+
+    const windows = [];
+    let wStart = new Date(startDate);
+    while (wStart <= endDate) {
+      const wEnd = new Date(wStart); wEnd.setMonth(wEnd.getMonth()+6);
+      windows.push({ start: new Date(wStart), end: new Date(wEnd) });
+      wStart = new Date(wEnd);
+    }
+
+    // For each window render a stacked chart showing only events within window
+    windows.forEach((win, idx) => {
+      const winIdx = dates
+        .map((d,i)=>({i, date:new Date(d)}))
+        .filter(o=> o.date >= win.start && o.date < win.end)
+        .map(o=>o.i);
+      if (winIdx.length === 0) return;
+
+      const winDates = winIdx.map(i=>dates[i]);
+      // Fixed bar width across all windows. Assume worst case daily rebalancing in 6 months
+      const dayMs = 24*60*60*1000;
+      const barWidthMs = Math.floor(dayMs * 0.7); // 70% of a day width
+      const winTraces = allSymbols.map(sym => ({
+        type:'bar',
+        name:sym,
+        x: winDates,
+        y: winIdx.map(i=> traces.find(t=>t.name===sym).y[i] || 0),
+        width: new Array(winDates.length).fill(barWidthMs),
+        hovertemplate: `${sym}<br>Weight: %{y:.1%}<br>Date: %{x}<extra></extra>`
+      }));
+
+      const wLayout = {
+        barmode:'stack',
+        title: `Adaptive Rebalancing Allocation (${context.market||''} • ${context.model||''}) — ${win.start.toISOString().slice(0,7)} ~ ${win.end.toISOString().slice(0,7)}`,
+        xaxis:{ title:'Rebalancing Date (Investment Time)', type:'date', tickmode:'array', tickvals: (()=>{
+          const tVals=[]; const seen=new Set();
+          winDates.forEach(d=>{ const dt=new Date(d); const key=`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`; if(!seen.has(key)){seen.add(key); tVals.push(d);} });
+          return tVals;
+        })(), ticktext: (()=>{
+          const tText=[]; const seen=new Set();
+          winDates.forEach(d=>{ const dt=new Date(d); const key=`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`; if(!seen.has(key)){seen.add(key); tText.push(`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-01`);} });
+          return tText;
+        })(), range:[win.start, win.end] },
+        yaxis:{ title:'Investment Ratio of Top-5 Stocks', range:[0,1] },
+        margin:{ t:40, r:10, b:60, l:60 }, showlegend: idx===0
+      };
+
+      const div = document.createElement('div');
+      div.style.marginBottom = '24px';
+      container.appendChild(div);
+      Plotly.newPlot(div, winTraces, wLayout, { responsive:true });
+    });
+    // No pagination or frequency controls (single chart)
+  }
+
+  /**
+   * Render pie chart for allocation closest to the selected end date
+   */
+  renderLatestAllocationPie(rows, endDate, model, market) {
+    try {
+      if (!rows || rows.length === 0) return;
+      const end = endDate ? new Date(endDate) : new Date(rows[rows.length - 1].date);
+      const withDates = rows.filter(r => r.date && r.portfolio_ratio).sort((a,b)=>new Date(a.date)-new Date(b.date));
+      if (!withDates.length) return;
+
+      // Find closest rebalancing record on or before end date; fallback to nearest
+      let chosen = null; let minDiff = Infinity;
+      for (const r of withDates) {
+        const d = new Date(r.date);
+        const diff = Math.abs(d - end);
+        if (d <= end && diff < minDiff) { chosen = r; minDiff = diff; }
+      }
+      if (!chosen) chosen = withDates[withDates.length - 1];
+
+      // Parse allocation map
+      const pr = this.sanitizePortfolioString(chosen.portfolio_ratio) || { all: {} };
+      const alloc = pr.all || {};
+      const labels = Object.keys(alloc).length ? Object.keys(alloc) : ['—'];
+      const values = Object.keys(alloc).length ? labels.map(k => alloc[k]) : [1];
+
+      // Other bucket if too many assets; show top 6 + Others
+      const sorted = labels.map(k => ({k, v: alloc[k]})).sort((a,b)=>b.v-a.v);
+      const top = sorted.slice(0,6);
+      const others = sorted.slice(6).reduce((s,x)=>s+x.v,0);
+      const pieLabels = top.map(x=>x.k).concat(others>0?['Others']:[]);
+      const pieValues = top.map(x=>x.v).concat(others>0?[others]:[]);
+
+      const pie = [{ type: 'pie', labels: pieLabels, values: pieValues, textinfo: 'label+percent', hole: 0 }];
+      const layout = { title: '', margin: { t: 10, r: 10, b: 10, l: 10 } };
+      this.createChartContainer('allocation_pie');
+      Plotly.newPlot('allocation_pie', pie, layout, { responsive: true });
+
+      // Title and next rebalancing recommendation
+      const titleEl = document.getElementById('allocation_title');
+      if (titleEl) titleEl.textContent = `Allocation on ${chosen.date} — Model: ${model}`;
+
+      const noteEl = document.getElementById('next_rebalancing_note');
+      // Prefer model's predicted holding period (pred_len) if available for the chosen record
+      const recDays = Number.isFinite(Number(chosen.pred_len)) && Number(chosen.pred_len) > 0
+        ? Math.round(Number(chosen.pred_len))
+        : this.estimateNextRebalancingDays(rows, chosen.date);
+      if (noteEl) noteEl.textContent = `Next Rebalancing Recommendation: Hold this portfolio for ${recDays} days`;
+    } catch (e) {
+      console.warn('[WARN] renderLatestAllocationPie failed:', e.message);
+    }
+  }
+
+  /** Estimate days until next rebalancing from the event list */
+  estimateNextRebalancingDays(rows, fromDate) {
+    const sorted = rows.filter(r=>r.date).sort((a,b)=>new Date(a.date)-new Date(b.date));
+    const idx = sorted.findIndex(r => r.date === fromDate);
+    if (idx >= 0 && idx < sorted.length - 1) {
+      const d1 = new Date(sorted[idx].date);
+      const d2 = new Date(sorted[idx+1].date);
+      return Math.max(1, Math.round((d2 - d1)/(1000*60*60*24)));
+    }
+    // Fallback: median gap
+    const gaps = [];
+    for (let i=1;i<sorted.length;i++) gaps.push((new Date(sorted[i].date)-new Date(sorted[i-1].date))/(1000*60*60*24));
+    if (gaps.length) {
+      gaps.sort((a,b)=>a-b); return Math.max(1, Math.round(gaps[Math.floor(gaps.length/2)]));
+    }
+    return 5;
+  }
+
+  /**
+   * Compute performance summary metrics from result.csv for current model/market
+   * - Total Return, Sharpe Ratio, Max Drawdown, Volatility
+   */
+  calculatePortfolioMetrics(filteredRows = null) {
+    if (!this.data?.result || this.data.result.length === 0) return;
+
+    // Use filteredRows (current selections) if provided
+    let series = (filteredRows || [])
+      .filter(r => r.date && r["Final Portfolio Value"] != null)
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
+    if (series.length < 2) return;
+
+    const values = series.map(s => Number(s["Final Portfolio Value"]))
+      .filter(v => Number.isFinite(v));
+    const totalReturn = values[values.length - 1] / values[0] - 1;
+
+    // Daily returns from portfolio value series
+    const rets = [];
+    for (let i = 1; i < values.length; i++) {
+      const r = (values[i] - values[i - 1]) / values[i - 1];
+      if (Number.isFinite(r)) rets.push(r);
+    }
+    if (rets.length === 0) return;
+
+    const mean = rets.reduce((a, b) => a + b, 0) / rets.length;
+    const variance = rets.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / rets.length;
+    const volDaily = Math.sqrt(variance);
+    const volAnnual = volDaily * Math.sqrt(252);
+    const sharpe = volDaily === 0 ? 0 : (mean * 252) / volAnnual; // risk-free ~ 0
+
+    // Max drawdown
+    let peak = values[0];
+    let maxDD = 0;
+    for (const v of values) {
+      peak = Math.max(peak, v);
+      const dd = (v - peak) / peak;
+      if (dd < maxDD) maxDD = dd;
+    }
+
+    // Update UI
+    const fmtPct = v => `${(v * 100).toFixed(2)}%`;
+    const fmtNum = v => (Number.isFinite(v) ? v.toFixed(3) : '-')
+    const setText = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+
+    setText('total_return', fmtPct(totalReturn));
+    setText('sharpe_ratio', fmtNum(sharpe));
+    setText('max_drawdown', fmtPct(maxDD));
+    setText('volatility', fmtPct(volAnnual));
   }
 
   optimizePortfolio() {
@@ -531,24 +2534,25 @@ class StockDashboard {
     this.showSuccess(`Portfolio rebalanced with ${frequency} frequency.`);
   }
 
-  calculatePortfolioMetrics() {
-    // Mock portfolio metrics
-    const metrics = {
-      totalReturn: 0.125,
-      sharpeRatio: 0.85,
-      maxDrawdown: -0.08,
-      volatility: 0.15
-    };
-    
-    document.getElementById('total_return').textContent = this.advancedFeatures.formatPercentage(metrics.totalReturn);
-    document.getElementById('sharpe_ratio').textContent = this.advancedFeatures.formatNumber(metrics.sharpeRatio);
-    document.getElementById('max_drawdown').textContent = this.advancedFeatures.formatPercentage(metrics.maxDrawdown);
-    document.getElementById('volatility').textContent = this.advancedFeatures.formatPercentage(metrics.volatility);
-  }
+  
 
   // Risk Tab Methods
   initializeRiskTab() {
-    this.calculateRiskMetrics();
+    console.log('⚠️ Initializing Risk tab...');
+    try {
+      this.calculateRiskMetrics();
+      
+      // Render additional risk analysis features
+      console.log('📊 Rendering risk analysis features...');
+      this.renderPortfolioRiskAnalysis();
+      this.renderDrawdownAnalysis();
+      this.renderRiskAdjustedReturns();
+      this.renderCorrelationAnalysis();
+      
+      console.log('✅ Risk tab initialized');
+    } catch (error) {
+      console.error('❌ Error initializing Risk tab:', error);
+    }
   }
 
   calculateVaR() {
@@ -594,26 +2598,65 @@ class StockDashboard {
   }
 
   openFullscreen(chartId) {
-    // Create fullscreen modal
-    const modal = document.createElement('div');
-    modal.className = 'fullscreen-modal active';
-    modal.innerHTML = `
-      <div class="fullscreen-content">
-        <button class="close-fullscreen">&times;</button>
-        <div id="fullscreen-${chartId}"></div>
-      </div>
-    `;
-    
-    document.body.appendChild(modal);
-    
-    // Copy chart to fullscreen
-    const originalChart = document.getElementById(chartId);
-    const fullscreenChart = document.getElementById(`fullscreen-${chartId}`);
-    
-    // Close modal
-    modal.querySelector('.close-fullscreen').addEventListener('click', () => {
-      document.body.removeChild(modal);
-    });
+    try {
+      console.log('[FULLSCREEN] Opening fullscreen for:', chartId);
+      
+      // Create fullscreen modal
+      const modal = document.createElement('div');
+      modal.className = 'fullscreen-modal active';
+      modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.9);
+        z-index: 10000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      `;
+      
+      modal.innerHTML = `
+        <div class="fullscreen-content" style="width: 95%; height: 95%; position: relative;">
+          <button class="close-fullscreen" style="position: absolute; top: 10px; right: 10px; background: #ff4444; color: white; border: none; border-radius: 50%; width: 40px; height: 40px; font-size: 20px; cursor: pointer; z-index: 10001;">&times;</button>
+          <div id="fullscreen-${chartId}" style="width: 100%; height: 100%;"></div>
+        </div>
+      `;
+      
+      document.body.appendChild(modal);
+      
+      // Re-render chart in fullscreen
+      const fullscreenChart = document.getElementById(`fullscreen-${chartId}`);
+      
+      if (chartId === 'heatmap' && this.data.future && this.data.future.length > 0) {
+        // Re-render heatmap in fullscreen
+        const futureData = this.buildFutureMatrix(this.data.future);
+        this.renderHeatmap(`fullscreen-${chartId}`, futureData);
+        console.log('[SUCCESS] Heatmap rendered in fullscreen');
+      } else {
+        console.warn('[WARN] No data available for fullscreen chart:', chartId);
+      }
+      
+      // Close modal
+      modal.querySelector('.close-fullscreen').addEventListener('click', () => {
+        document.body.removeChild(modal);
+        console.log('[FULLSCREEN] Closed fullscreen modal');
+      });
+      
+      // Close on escape key
+      const handleEscape = (e) => {
+        if (e.key === 'Escape') {
+          document.body.removeChild(modal);
+          document.removeEventListener('keydown', handleEscape);
+          console.log('[FULLSCREEN] Closed fullscreen modal via escape key');
+        }
+      };
+      document.addEventListener('keydown', handleEscape);
+      
+    } catch (error) {
+      console.error('[ERROR] Error opening fullscreen:', error);
+    }
   }
 
   loadUserPreferences() {
@@ -765,118 +2808,182 @@ class StockDashboard {
    * Render rebalancing timeline showing when rebalancing events occurred
    */
   renderRebalancingTimeline() {
-    if (!this.data.result || !this.data.test) return;
+    console.log('🔄 Rendering rebalancing timeline...');
+    if (!this.data.result || !this.data.test) {
+      console.warn('⚠️ Missing data for rebalancing timeline');
+      return;
+    }
 
-    // Get rebalancing dates from result data
-    const rebalancingDates = this.unique(this.data.result.map(r => r.date).filter(Boolean))
-      .sort((a, b) => new Date(a) - new Date(b));
+    // Scope to user selection if available
+    const mSel = document.getElementById('portfolio_market_select')?.value;
+    const modelSel = document.getElementById('model_select')?.value;
+    const sEl = document.getElementById('portfolio_start_date')?.value;
+    const eEl = document.getElementById('portfolio_end_date')?.value;
 
-    // Get market volatility data for context
-    const marketData = this.data.test.filter(r => r.market === 'dj30');
-    const volatilityData = this.calculateMarketVolatility(marketData);
+    const filtered = this.data.result
+      .filter(r => (!mSel || r.market === mSel) && (!modelSel || r.model === modelSel))
+      .filter(r => (!sEl || new Date(r.date) >= new Date(sEl)) && (!eEl || new Date(r.date) <= new Date(eEl)));
 
-    // Create rebalancing events
-    const rebalancingEvents = rebalancingDates.map(date => ({
-      x: date,
-      y: 1,
-      text: `Rebalancing Event<br>Date: ${date}`,
-      marker: { color: '#ef4444', size: 10 }
-    }));
+    const markets = this.unique(filtered.map(r => r.market).filter(Boolean));
+    const traces = [];
 
-    // Create volatility trace
-    const volatilityTrace = {
-      x: volatilityData.dates,
-      y: volatilityData.volatility,
-      type: 'scatter',
-      mode: 'lines',
-      name: 'Market Volatility (30-day)',
-      yaxis: 'y2',
-      line: { color: '#6b7280', width: 1 }
-    };
+    markets.forEach(market => {
+      const marketRebalancingData = filtered
+        .filter(r => r.market === market && r.date && r["Final Portfolio Value"] != null)
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
 
-    // Create rebalancing events trace
-    const rebalancingTrace = {
-      x: rebalancingEvents.map(e => e.x),
-      y: rebalancingEvents.map(e => e.y),
-      type: 'scatter',
-      mode: 'markers',
-      name: 'Rebalancing Events',
-      yaxis: 'y',
-      marker: { color: '#ef4444', size: 8 },
-      text: rebalancingEvents.map(e => e.text),
-      hovertemplate: '%{text}<extra></extra>'
-    };
+      if (marketRebalancingData.length === 0) return;
+
+      // Get market volatility data
+      const marketData = this.data.test.filter(r => r.market === market);
+      const volatilityData = this.calculateMarketVolatility(marketData);
+
+      // Create rebalancing events for this market
+      const rebalancingEvents = marketRebalancingData.map(row => {
+        const portfolioValue = row["Final Portfolio Value"];
+        const returnValue = (portfolioValue - 1) * 100; // Convert to percentage
+        return {
+          x: row.date,
+          y: returnValue,
+          text: `${market.toUpperCase()} Rebalancing<br>Date: ${row.date}<br>Portfolio Value: ${portfolioValue.toFixed(4)}<br>Return: ${returnValue.toFixed(2)}%`,
+          marker: { 
+            color: this.getMarketColor(market), 
+            size: 12,
+            symbol: 'diamond'
+          }
+        };
+      });
+
+      // Add rebalancing events trace
+      traces.push({
+        x: rebalancingEvents.map(e => e.x),
+        y: rebalancingEvents.map(e => e.y),
+        type: 'scatter',
+        mode: 'markers',
+        name: `${market.toUpperCase()} Rebalancing`,
+        marker: { 
+          color: this.getMarketColor(market),
+          size: 10,
+          symbol: 'diamond'
+        },
+        text: rebalancingEvents.map(e => e.text),
+        hovertemplate: '%{text}<extra></extra>'
+      });
+
+      // Add volatility trace for this market
+      if (volatilityData.volatility.length > 0) {
+        traces.push({
+          x: volatilityData.dates,
+          y: volatilityData.volatility,
+          type: 'scatter',
+          mode: 'lines',
+          name: `${market.toUpperCase()} Volatility`,
+          yaxis: 'y2',
+          line: { color: this.getMarketColor(market), width: 1, dash: 'dot' },
+          opacity: 0.6
+        });
+      }
+    });
 
     const layout = {
-      title: '🔄 Adaptive Rebalancing Timeline',
+      title: '🔄 DeepAries Adaptive Rebalancing Timeline',
       xaxis: { title: 'Date' },
       yaxis: { 
-        title: 'Rebalancing Events',
-        range: [0.5, 1.5],
-        showticklabels: false
+        title: 'Portfolio Return (%)',
+        tickformat: '.1f'
       },
       yaxis2: {
         title: 'Market Volatility',
         overlaying: 'y',
-        side: 'right',
-        range: [0, Math.max(...volatilityData.volatility) * 1.1]
+        side: 'right'
       },
       margin: { t: 40, r: 60, b: 40, l: 50 },
       hovermode: 'x unified',
-      showlegend: true
+      showlegend: true,
+      annotations: [{
+        x: 0.02,
+        y: 0.98,
+        xref: 'paper',
+        yref: 'paper',
+        text: 'Diamonds: Rebalancing Events • Dotted Lines: Market Volatility',
+        showarrow: false,
+        font: { size: 12, color: '#6b7280' },
+        bgcolor: 'rgba(255,255,255,0.8)',
+        bordercolor: '#e2e8f0',
+        borderwidth: 1
+      }]
     };
 
-    // Create container if it doesn't exist
-    this.createChartContainer('rebalancing_timeline');
-    Plotly.newPlot('rebalancing_timeline', [volatilityTrace, rebalancingTrace], layout, { responsive: true });
+    const rtEl = document.getElementById('rebalancing_timeline');
+    if (!rtEl) return;
+    if (traces.length === 0) {
+      rtEl.innerHTML = '<div style="padding:12px;color:#6b7280">No data available for the selected market/model/date.</div>';
+    } else {
+      this.createChartContainer('rebalancing_timeline');
+      Plotly.newPlot('rebalancing_timeline', traces, layout, { responsive: true });
+    }
   }
 
   /**
    * Render portfolio vs benchmark performance comparison
    */
   renderPerformanceComparison() {
-    if (!this.data.result || !this.data.test) return;
+    console.log('📈 Rendering performance comparison...');
+    if (!this.data.result || !this.data.test) {
+      console.warn('⚠️ Missing data for performance comparison');
+      return;
+    }
 
-    // Get portfolio values over time
-    const portfolioData = this.data.result
-      .filter(r => r.date && r["Final Portfolio Value"] != null)
-      .sort((a, b) => new Date(a.date) - new Date(b.date));
+    // Get portfolio values by market
+    const markets = this.unique(this.data.result.map(r => r.market).filter(Boolean));
+    const traces = [];
 
-    // Get benchmark data (DJ30)
-    const benchmarkData = this.data.test
-      .filter(r => r.market === 'dj30' && r.date && r.close != null)
-      .sort((a, b) => new Date(a.date) - new Date(b.date));
+    markets.forEach(market => {
+      const portfolioData = this.data.result
+        .filter(r => r.market === market && r.date && r["Final Portfolio Value"] != null)
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
 
-    // Normalize both to starting value of 1
-    const normalizedPortfolio = this.normalizeToStartingValue(
-      portfolioData.map(r => ({ date: r.date, value: r["Final Portfolio Value"] }))
-    );
+      if (portfolioData.length === 0) return;
 
-    const normalizedBenchmark = this.normalizeToStartingValue(
-      benchmarkData.map(r => ({ date: r.date, value: r.close }))
-    );
+      // Get corresponding benchmark data
+      const benchmarkData = this.data.test
+        .filter(r => r.market === market && r.date && r.close != null)
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
 
-    // Create traces
-    const portfolioTrace = {
-      x: normalizedPortfolio.map(d => d.date),
-      y: normalizedPortfolio.map(d => d.normalizedValue),
-      type: 'scatter',
-      mode: 'lines',
-      name: 'DeepAries Portfolio',
-      line: { color: '#2563eb', width: 3 }
-    };
+      if (benchmarkData.length === 0) return;
 
-    const benchmarkTrace = {
-      x: normalizedBenchmark.map(d => d.date),
-      y: normalizedBenchmark.map(d => d.normalizedValue),
-      type: 'scatter',
-      mode: 'lines',
-      name: 'DJ30 Benchmark',
-      line: { color: '#6b7280', width: 2, dash: 'dash' }
-    };
+      // Normalize both to starting value of 1
+      const normalizedPortfolio = this.normalizeToStartingValue(
+        portfolioData.map(r => ({ date: r.date, value: r["Final Portfolio Value"] }))
+      );
+
+      const normalizedBenchmark = this.normalizeToStartingValue(
+        benchmarkData.map(r => ({ date: r.date, value: r.close }))
+      );
+
+      // Portfolio trace
+      traces.push({
+        x: normalizedPortfolio.map(d => d.date),
+        y: normalizedPortfolio.map(d => d.normalizedValue),
+        type: 'scatter',
+        mode: 'lines',
+        name: `DeepAries ${market.toUpperCase()}`,
+        line: { color: this.getMarketColor(market), width: 3 }
+      });
+
+      // Benchmark trace
+      traces.push({
+        x: normalizedBenchmark.map(d => d.date),
+        y: normalizedBenchmark.map(d => d.normalizedValue),
+        type: 'scatter',
+        mode: 'lines',
+        name: `${market.toUpperCase()} Benchmark`,
+        line: { color: this.getMarketColor(market), width: 2, dash: 'dash' }
+      });
+    });
 
     const layout = {
-      title: '📈 Portfolio vs Benchmark Performance (Normalized)',
+      title: '📈 DeepAries Portfolio vs Benchmark Performance (Normalized)',
       xaxis: { title: 'Date' },
       yaxis: { 
         title: 'Cumulative Return (Normalized)',
@@ -890,62 +2997,100 @@ class StockDashboard {
         y: 0.98,
         xref: 'paper',
         yref: 'paper',
-        text: 'Starting Value: 1.00',
+        text: 'Starting Value: 1.00 • Solid: DeepAries • Dashed: Benchmark',
         showarrow: false,
-        font: { size: 12, color: '#6b7280' }
+        font: { size: 12, color: '#6b7280' },
+        bgcolor: 'rgba(255,255,255,0.8)',
+        bordercolor: '#e2e8f0',
+        borderwidth: 1
       }]
     };
 
     this.createChartContainer('performance_comparison');
-    Plotly.newPlot('performance_comparison', [portfolioTrace, benchmarkTrace], layout, { responsive: true });
+    Plotly.newPlot('performance_comparison', traces, layout, { responsive: true });
   }
 
   /**
    * Render rebalancing frequency analysis
    */
   renderRebalancingFrequency() {
-    if (!this.data.result) return;
-
-    // Calculate rebalancing intervals
-    const rebalancingDates = this.unique(this.data.result.map(r => r.date).filter(Boolean))
-      .sort((a, b) => new Date(a) - new Date(b));
-
-    const intervals = [];
-    for (let i = 1; i < rebalancingDates.length; i++) {
-      const prevDate = new Date(rebalancingDates[i-1]);
-      const currDate = new Date(rebalancingDates[i]);
-      const daysDiff = Math.ceil((currDate - prevDate) / (1000 * 60 * 60 * 24));
-      intervals.push(daysDiff);
+    console.log('📊 Rendering rebalancing frequency...');
+    if (!this.data.result) {
+      console.warn('⚠️ Missing result data for rebalancing frequency');
+      return;
     }
 
-    // Create histogram
-    const trace = {
-      x: intervals,
-      type: 'histogram',
-      name: 'Rebalancing Intervals',
-      marker: { color: '#10b981' },
-      nbinsx: Math.min(20, Math.ceil(Math.sqrt(intervals.length)))
-    };
+    // Scope to user selection
+    const mSel = document.getElementById('portfolio_market_select')?.value;
+    const modelSel = document.getElementById('model_select')?.value;
+    const sEl = document.getElementById('portfolio_start_date')?.value;
+    const eEl = document.getElementById('portfolio_end_date')?.value;
+
+    const subset = this.data.result
+      .filter(r => (!mSel || r.market === mSel) && (!modelSel || r.model === modelSel))
+      .filter(r => (!sEl || new Date(r.date) >= new Date(sEl)) && (!eEl || new Date(r.date) <= new Date(eEl)));
+
+    const markets = this.unique(subset.map(r => r.market).filter(Boolean));
+    const traces = [];
+
+    markets.forEach(market => {
+      const marketRebalancingDates = this.unique(
+        subset.filter(r => r.market === market && r.date).map(r => r.date)
+      ).sort((a, b) => new Date(a) - new Date(b));
+
+      if (marketRebalancingDates.length < 2) return;
+
+      const intervals = [];
+      for (let i = 1; i < marketRebalancingDates.length; i++) {
+        const prevDate = new Date(marketRebalancingDates[i-1]);
+        const currDate = new Date(marketRebalancingDates[i]);
+        const daysDiff = Math.ceil((currDate - prevDate) / (1000 * 60 * 60 * 24));
+        intervals.push(daysDiff);
+      }
+
+      if (intervals.length === 0) return;
+
+      // Create histogram for this market
+      traces.push({
+        x: intervals,
+        type: 'histogram',
+        name: `${market.toUpperCase()} Intervals`,
+        marker: { color: this.getMarketColor(market) },
+        opacity: 0.7,
+        nbinsx: Math.min(15, Math.ceil(Math.sqrt(intervals.length))),
+        hovertemplate: `${market.toUpperCase()}<br>Days: %{x}<br>Frequency: %{y}<extra></extra>`
+      });
+    });
 
     const layout = {
-      title: '📊 Rebalancing Frequency Distribution',
+      title: '📊 DeepAries Rebalancing Frequency Distribution by Market',
       xaxis: { title: 'Days Between Rebalancing' },
       yaxis: { title: 'Frequency' },
       margin: { t: 40, r: 10, b: 40, l: 50 },
-      showlegend: false,
+      showlegend: true,
+      barmode: 'overlay',
       annotations: [{
         x: 0.02,
         y: 0.98,
         xref: 'paper',
         yref: 'paper',
-        text: `Average Interval: ${Math.round(intervals.reduce((a, b) => a + b, 0) / intervals.length)} days`,
+        text: 'Shows adaptive rebalancing intervals across different markets',
         showarrow: false,
-        font: { size: 12, color: '#6b7280' }
+        font: { size: 12, color: '#6b7280' },
+        bgcolor: 'rgba(255,255,255,0.8)',
+        bordercolor: '#e2e8f0',
+        borderwidth: 1
       }]
     };
 
-    this.createChartContainer('rebalancing_frequency');
-    Plotly.newPlot('rebalancing_frequency', [trace], layout, { responsive: true });
+    const rfEl = document.getElementById('rebalancing_frequency');
+    if (!rfEl) return;
+    if (traces.length === 0) {
+      rfEl.innerHTML = '<div style="padding:12px;color:#6b7280">No rebalancing events in the selected range.</div>';
+    } else {
+      this.createChartContainer('rebalancing_frequency');
+      Plotly.newPlot('rebalancing_frequency', traces, layout, { responsive: true });
+    }
   }
 
   /**
@@ -991,6 +3136,616 @@ class StockDashboard {
   }
 
   /**
+   * Render market condition detection and visualization
+   */
+  renderMarketConditionDetection() {
+    console.log('🔍 Rendering market condition detection...');
+    if (!this.data.test || !this.data.result) {
+      console.warn('⚠️ Missing data for market condition detection');
+      return;
+    }
+
+    // Scope to selection
+    const mSel = document.getElementById('portfolio_market_select')?.value;
+    const modelSel = document.getElementById('model_select')?.value;
+    const sEl = document.getElementById('portfolio_start_date')?.value;
+    const eEl = document.getElementById('portfolio_end_date')?.value;
+
+    const subset = this.data.result
+      .filter(r => (!mSel || r.market === mSel) && (!modelSel || r.model === modelSel))
+      .filter(r => (!sEl || new Date(r.date) >= new Date(sEl)) && (!eEl || new Date(r.date) <= new Date(eEl)));
+
+    const markets = this.unique(subset.map(r => r.market).filter(Boolean));
+    const traces = [];
+
+    markets.forEach(market => {
+      // Get market data (benchmark) and calculate conditions for selected window
+      let marketData = this.data.test.filter(r => r.market === market);
+      marketData = marketData.filter(r => (!sEl || new Date(r.date) >= new Date(sEl)) && (!eEl || new Date(r.date) <= new Date(eEl)));
+      if (marketData.length === 0) return;
+      
+      const marketConditions = this.analyzeMarketConditions(marketData);
+      if (marketConditions.volatility.length === 0) return;
+      
+      // Get rebalancing dates for this market
+      const marketRebalancingDates = this.unique(
+        subset.filter(r => r.market === market && r.date).map(r => r.date)
+      ).sort((a, b) => new Date(a) - new Date(b));
+
+      // Volatility condition
+      traces.push({
+        x: marketConditions.dates,
+        y: marketConditions.volatility,
+        type: 'scatter',
+        mode: 'lines',
+        name: `${market.toUpperCase()} Volatility`,
+        line: { color: this.getMarketColor(market), width: 1, dash: 'dot' },
+        yaxis: 'y2',
+        opacity: 0.6
+      });
+
+      // Market trend condition
+      traces.push({
+        x: marketConditions.dates,
+        y: marketConditions.trend,
+        type: 'scatter',
+        mode: 'lines',
+        name: `${market.toUpperCase()} Trend`,
+        line: { color: this.getMarketColor(market), width: 2 },
+        yaxis: 'y'
+      });
+
+      // Rebalancing events overlay for this market
+      const rebalancingEvents = marketRebalancingDates.map(date => {
+        const condition = this.getMarketConditionAtDate(marketConditions, date);
+        const portfolioData = this.data.result.find(r => r.market === market && r.date === date);
+        const portfolioValue = portfolioData ? portfolioData["Final Portfolio Value"] : 1;
+        const returnValue = (portfolioValue - 1) * 100;
+        
+        return {
+          x: date,
+          y: condition.trend,
+          text: `${market.toUpperCase()} Rebalancing<br>Date: ${date}<br>Volatility: ${(condition.volatility * 100).toFixed(1)}%<br>Trend: ${condition.trend > 0 ? 'Bullish' : 'Bearish'}<br>Portfolio Return: ${returnValue.toFixed(2)}%`,
+          marker: { 
+            color: this.getMarketColor(market),
+            size: 12,
+            symbol: 'diamond'
+          }
+        };
+      });
+
+      if (rebalancingEvents.length > 0) {
+        traces.push({
+          x: rebalancingEvents.map(e => e.x),
+          y: rebalancingEvents.map(e => e.y),
+          type: 'scatter',
+          mode: 'markers',
+          name: `${market.toUpperCase()} Rebalancing`,
+          yaxis: 'y',
+          marker: { 
+            color: this.getMarketColor(market),
+            size: 10,
+            symbol: 'diamond'
+          },
+          text: rebalancingEvents.map(e => e.text),
+          hovertemplate: '%{text}<extra></extra>'
+        });
+      }
+    });
+
+    const layout = {
+      title: '🔍 DeepAries Market Condition Detection & Adaptive Rebalancing',
+      xaxis: { title: 'Date' },
+      yaxis: { 
+        title: 'Market Trend (Normalized)',
+        range: [-1, 1]
+      },
+      yaxis2: {
+        title: 'Volatility',
+        overlaying: 'y',
+        side: 'right'
+      },
+      margin: { t: 40, r: 60, b: 40, l: 50 },
+      hovermode: 'x unified',
+      showlegend: true,
+      annotations: [
+        {
+          x: 0.02,
+          y: 0.98,
+          xref: 'paper',
+          yref: 'paper',
+          text: 'Diamonds: Rebalancing Events • Solid Lines: Market Trends • Dotted Lines: Volatility',
+          showarrow: false,
+          font: { size: 12, color: '#6b7280' },
+          bgcolor: 'rgba(255,255,255,0.8)',
+          bordercolor: '#e2e8f0',
+          borderwidth: 1
+        }
+      ]
+    };
+
+    const mcdEl = document.getElementById('market_condition_detection');
+    if (!mcdEl) return;
+    if (traces.length === 0) {
+      mcdEl.innerHTML = '<div style="padding:12px;color:#6b7280">No benchmark/condition data in selected period.</div>';
+    } else {
+      this.createChartContainer('market_condition_detection');
+      Plotly.newPlot('market_condition_detection', traces, layout, { responsive: true });
+    }
+  }
+
+  /**
+   * Render portfolio weights change over time
+   */
+  renderPortfolioWeightsChange() {
+    console.log('📊 Rendering portfolio weights change...');
+    if (!this.data.result) {
+      console.warn('⚠️ Missing result data for portfolio weights change');
+      return;
+    }
+
+    // Get portfolio data by market
+    const markets = this.unique(this.data.result.map(r => r.market).filter(Boolean));
+    const traces = [];
+
+    markets.forEach(market => {
+      const marketData = this.data.result
+        .filter(r => r.market === market && r.date && r.portfolio_ratio)
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      if (marketData.length === 0) return;
+
+      // Parse portfolio ratios and get top assets for this market
+      const weightsOverTime = [];
+      const dates = [];
+      const topAssets = new Set();
+
+      marketData.forEach(row => {
+        const portfolioRatio = this.sanitizePortfolioString(row.portfolio_ratio);
+        if (portfolioRatio && portfolioRatio.all) {
+          dates.push(row.date);
+          weightsOverTime.push(portfolioRatio.all);
+          
+          // Collect top assets (only those with significant weights)
+          Object.keys(portfolioRatio.all).forEach(asset => {
+            if (portfolioRatio.all[asset] > 0.04) { // 4% threshold
+              topAssets.add(asset);
+            }
+          });
+        }
+      });
+
+      if (dates.length === 0) return;
+
+      // Create traces for top assets in this market
+      const topAssetsArray = Array.from(topAssets).slice(0, 8); // Limit to top 8 per market
+
+      topAssetsArray.forEach(asset => {
+        const weights = weightsOverTime.map(weights => weights[asset] || 0);
+        traces.push({
+          x: dates,
+          y: weights,
+          type: 'scatter',
+          mode: 'lines',
+          name: `${market.toUpperCase()}: ${asset}`,
+          line: { 
+            width: 2,
+            color: this.getMarketColor(market)
+          },
+          stackgroup: market, // Stack by market
+          hovertemplate: `${market.toUpperCase()}<br>${asset}<br>Weight: %{y:.1%}<br>Date: %{x}<extra></extra>`
+        });
+      });
+    });
+
+    const layout = {
+      title: '📊 DeepAries Portfolio Weights Change Over Time',
+      xaxis: { title: 'Date' },
+      yaxis: { 
+        title: 'Portfolio Weight',
+        tickformat: '.1%',
+        range: [0, 1]
+      },
+      margin: { t: 40, r: 10, b: 40, l: 50 },
+      hovermode: 'x unified',
+      showlegend: true,
+      annotations: [{
+        x: 0.02,
+        y: 0.98,
+        xref: 'paper',
+        yref: 'paper',
+        text: 'Stacked by market showing adaptive portfolio allocation changes',
+        showarrow: false,
+        font: { size: 12, color: '#6b7280' },
+        bgcolor: 'rgba(255,255,255,0.8)',
+        bordercolor: '#e2e8f0',
+        borderwidth: 1
+      }]
+    };
+
+    this.createChartContainer('portfolio_weights_change');
+    Plotly.newPlot('portfolio_weights_change', traces, layout, { responsive: true });
+  }
+
+  /**
+   * Analyze market conditions from market data
+   */
+  analyzeMarketConditions(marketData, window = 30) {
+    const prices = marketData.map(d => d.close);
+    const dates = marketData.map(d => d.date);
+    const conditions = {
+      dates: [],
+      volatility: [],
+      trend: []
+    };
+
+    for (let i = window; i < prices.length; i++) {
+      const windowPrices = prices.slice(i - window, i);
+      const currentPrice = prices[i];
+      const avgPrice = windowPrices.reduce((a, b) => a + b, 0) / windowPrices.length;
+      
+      // Calculate volatility
+      const returns = [];
+      for (let j = 1; j < windowPrices.length; j++) {
+        returns.push((windowPrices[j] - windowPrices[j-1]) / windowPrices[j-1]);
+      }
+      const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
+      const variance = returns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / returns.length;
+      const volatility = Math.sqrt(variance);
+      
+      // Calculate trend (normalized)
+      const trend = (currentPrice - avgPrice) / avgPrice;
+      
+      conditions.dates.push(dates[i]);
+      conditions.volatility.push(volatility);
+      conditions.trend.push(trend);
+    }
+
+    return conditions;
+  }
+
+  /**
+   * Get market condition at specific date
+   */
+  getMarketConditionAtDate(marketConditions, targetDate) {
+    const target = new Date(targetDate);
+    let closestIndex = 0;
+    let minDiff = Math.abs(new Date(marketConditions.dates[0]) - target);
+
+    for (let i = 1; i < marketConditions.dates.length; i++) {
+      const diff = Math.abs(new Date(marketConditions.dates[i]) - target);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestIndex = i;
+      }
+    }
+
+    return {
+      volatility: marketConditions.volatility[closestIndex],
+      trend: marketConditions.trend[closestIndex]
+    };
+  }
+
+  /**
+   * Get color for market
+   */
+  getMarketColor(market) {
+    const colors = {
+      'csi300': '#2563eb',  // Blue
+      'dj30': '#dc2626',    // Red
+      'ftse': '#059669',    // Green
+      'kospi': '#7c3aed'    // Purple
+    };
+    return colors[market] || '#6b7280'; // Default gray
+  }
+
+  /**
+   * Render portfolio risk analysis
+   */
+  renderPortfolioRiskAnalysis() {
+    console.log('📈 Rendering portfolio risk analysis...');
+    if (!this.data.result) {
+      console.warn('⚠️ Missing result data for portfolio risk analysis');
+      return;
+    }
+
+    // Calculate portfolio risk metrics
+    const markets = this.unique(this.data.result.map(r => r.market).filter(Boolean));
+    const riskData = [];
+
+    markets.forEach(market => {
+      const marketData = this.data.result
+        .filter(r => r.market === market && r["Final Portfolio Value"] != null)
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      if (marketData.length < 2) return;
+
+      // Calculate returns
+      const returns = [];
+      for (let i = 1; i < marketData.length; i++) {
+        const prevValue = marketData[i-1]["Final Portfolio Value"];
+        const currValue = marketData[i]["Final Portfolio Value"];
+        const returnValue = (currValue - prevValue) / prevValue;
+        returns.push(returnValue);
+      }
+
+      // Calculate risk metrics
+      const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
+      const variance = returns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / returns.length;
+      const volatility = Math.sqrt(variance) * Math.sqrt(252); // Annualized
+      const sharpeRatio = mean / Math.sqrt(variance) * Math.sqrt(252);
+
+      riskData.push({
+        market: market.toUpperCase(),
+        volatility: volatility,
+        sharpeRatio: sharpeRatio,
+        meanReturn: mean * 252 // Annualized
+      });
+    });
+
+    // Create risk scatter plot
+    const trace = {
+      x: riskData.map(d => d.volatility),
+      y: riskData.map(d => d.meanReturn),
+      mode: 'markers+text',
+      type: 'scatter',
+      text: riskData.map(d => d.market),
+      textposition: 'top center',
+      marker: {
+        size: 12,
+        color: riskData.map(d => this.getMarketColor(d.market.toLowerCase())),
+        line: { width: 2, color: 'white' }
+      },
+      name: 'Portfolio Risk-Return'
+    };
+
+    const layout = {
+      title: '📈 Portfolio Risk-Return Analysis',
+      xaxis: { title: 'Volatility (Annualized)' },
+      yaxis: { title: 'Expected Return (Annualized)' },
+      margin: { t: 40, r: 10, b: 40, l: 50 },
+      showlegend: false
+    };
+
+    this.createChartContainer('portfolio_risk_analysis');
+    Plotly.newPlot('portfolio_risk_analysis', [trace], layout, { responsive: true });
+  }
+
+  /**
+   * Render drawdown analysis
+   */
+  renderDrawdownAnalysis() {
+    console.log('📉 Rendering drawdown analysis...');
+    if (!this.data.result) {
+      console.warn('⚠️ Missing result data for drawdown analysis');
+      return;
+    }
+
+    const markets = this.unique(this.data.result.map(r => r.market).filter(Boolean));
+    const traces = [];
+
+    markets.forEach(market => {
+      const marketData = this.data.result
+        .filter(r => r.market === market && r["Final Portfolio Value"] != null)
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      if (marketData.length < 2) return;
+
+      // Calculate drawdown
+      const dates = marketData.map(d => d.date);
+      const values = marketData.map(d => d["Final Portfolio Value"]);
+      const drawdowns = [];
+      let peak = values[0];
+
+      values.forEach(value => {
+        if (value > peak) peak = value;
+        const drawdown = (value - peak) / peak;
+        drawdowns.push(drawdown);
+      });
+
+      traces.push({
+        x: dates,
+        y: drawdowns,
+        type: 'scatter',
+        mode: 'lines',
+        name: `${market.toUpperCase()} Drawdown`,
+        line: { color: this.getMarketColor(market), width: 2 },
+        fill: 'tonexty'
+      });
+    });
+
+    const layout = {
+      title: '📉 Portfolio Drawdown Analysis',
+      xaxis: { title: 'Date' },
+      yaxis: { 
+        title: 'Drawdown (%)',
+        tickformat: '.1%'
+      },
+      margin: { t: 40, r: 10, b: 40, l: 50 },
+      showlegend: true
+    };
+
+    this.createChartContainer('drawdown_analysis');
+    Plotly.newPlot('drawdown_analysis', traces, layout, { responsive: true });
+  }
+
+  /**
+   * Render risk-adjusted returns
+   */
+  renderRiskAdjustedReturns() {
+    console.log('⚖️ Rendering risk-adjusted returns...');
+    if (!this.data.result) {
+      console.warn('⚠️ Missing result data for risk-adjusted returns');
+      return;
+    }
+
+    const markets = this.unique(this.data.result.map(r => r.market).filter(Boolean));
+    const metrics = [];
+
+    markets.forEach(market => {
+      const marketData = this.data.result
+        .filter(r => r.market === market && r["Final Portfolio Value"] != null)
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      if (marketData.length < 2) return;
+
+      // Calculate returns
+      const returns = [];
+      for (let i = 1; i < marketData.length; i++) {
+        const prevValue = marketData[i-1]["Final Portfolio Value"];
+        const currValue = marketData[i]["Final Portfolio Value"];
+        const returnValue = (currValue - prevValue) / prevValue;
+        returns.push(returnValue);
+      }
+
+      // Calculate risk-adjusted metrics
+      const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
+      const variance = returns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / returns.length;
+      const volatility = Math.sqrt(variance);
+      const sharpeRatio = mean / volatility * Math.sqrt(252);
+      
+      // Sortino ratio (downside deviation)
+      const negativeReturns = returns.filter(r => r < 0);
+      const downsideVariance = negativeReturns.reduce((a, b) => a + Math.pow(b, 2), 0) / returns.length;
+      const downsideDeviation = Math.sqrt(downsideVariance);
+      const sortinoRatio = mean / downsideDeviation * Math.sqrt(252);
+
+      metrics.push({
+        market: market.toUpperCase(),
+        sharpeRatio: sharpeRatio,
+        sortinoRatio: sortinoRatio,
+        volatility: volatility * Math.sqrt(252)
+      });
+    });
+
+    // Create bar chart
+    const trace = {
+      x: metrics.map(m => m.market),
+      y: metrics.map(m => m.sharpeRatio),
+      type: 'bar',
+      name: 'Sharpe Ratio',
+      marker: { color: '#2563eb' }
+    };
+
+    const trace2 = {
+      x: metrics.map(m => m.market),
+      y: metrics.map(m => m.sortinoRatio),
+      type: 'bar',
+      name: 'Sortino Ratio',
+      marker: { color: '#059669' }
+    };
+
+    const layout = {
+      title: '⚖️ Risk-Adjusted Returns Comparison',
+      xaxis: { title: 'Market' },
+      yaxis: { title: 'Ratio' },
+      margin: { t: 40, r: 10, b: 40, l: 50 },
+      barmode: 'group',
+      showlegend: true
+    };
+
+    this.createChartContainer('risk_adjusted_returns');
+    Plotly.newPlot('risk_adjusted_returns', [trace, trace2], layout, { responsive: true });
+  }
+
+  /**
+   * Render correlation analysis
+   */
+  renderCorrelationAnalysis() {
+    console.log('🔗 Rendering correlation analysis...');
+    if (!this.data.result) {
+      console.warn('⚠️ Missing result data for correlation analysis');
+      return;
+    }
+
+    const markets = this.unique(this.data.result.map(r => r.market).filter(Boolean));
+    const correlationMatrix = [];
+
+    // Calculate correlation between markets
+    for (let i = 0; i < markets.length; i++) {
+      const row = [];
+      for (let j = 0; j < markets.length; j++) {
+        if (i === j) {
+          row.push(1.0);
+        } else {
+          const correlation = this.calculateMarketCorrelation(markets[i], markets[j]);
+          row.push(correlation);
+        }
+      }
+      correlationMatrix.push(row);
+    }
+
+    const trace = {
+      z: correlationMatrix,
+      x: markets.map(m => m.toUpperCase()),
+      y: markets.map(m => m.toUpperCase()),
+      type: 'heatmap',
+      colorscale: 'RdBu',
+      zmid: 0,
+      text: correlationMatrix.map(row => 
+        row.map(val => val.toFixed(3))
+      ),
+      texttemplate: '%{text}',
+      textfont: { size: 12 }
+    };
+
+    const layout = {
+      title: '🔗 Market Correlation Matrix',
+      margin: { t: 40, r: 10, b: 40, l: 50 }
+    };
+
+    this.createChartContainer('correlation_analysis');
+    Plotly.newPlot('correlation_analysis', [trace], layout, { responsive: true });
+  }
+
+  /**
+   * Calculate correlation between two markets
+   */
+  calculateMarketCorrelation(market1, market2) {
+    const data1 = this.data.result
+      .filter(r => r.market === market1 && r["Final Portfolio Value"] != null)
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
+    
+    const data2 = this.data.result
+      .filter(r => r.market === market2 && r["Final Portfolio Value"] != null)
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    if (data1.length < 2 || data2.length < 2) return 0;
+
+    // Calculate returns
+    const returns1 = [];
+    const returns2 = [];
+    
+    for (let i = 1; i < Math.min(data1.length, data2.length); i++) {
+      const ret1 = (data1[i]["Final Portfolio Value"] - data1[i-1]["Final Portfolio Value"]) / data1[i-1]["Final Portfolio Value"];
+      const ret2 = (data2[i]["Final Portfolio Value"] - data2[i-1]["Final Portfolio Value"]) / data2[i-1]["Final Portfolio Value"];
+      returns1.push(ret1);
+      returns2.push(ret2);
+    }
+
+    if (returns1.length < 2) return 0;
+
+    // Calculate correlation
+    const mean1 = returns1.reduce((a, b) => a + b, 0) / returns1.length;
+    const mean2 = returns2.reduce((a, b) => a + b, 0) / returns2.length;
+
+    let numerator = 0;
+    let sumSq1 = 0;
+    let sumSq2 = 0;
+
+    for (let i = 0; i < returns1.length; i++) {
+      const diff1 = returns1[i] - mean1;
+      const diff2 = returns2[i] - mean2;
+      numerator += diff1 * diff2;
+      sumSq1 += diff1 * diff1;
+      sumSq2 += diff2 * diff2;
+    }
+
+    const denominator = Math.sqrt(sumSq1 * sumSq2);
+    return denominator === 0 ? 0 : numerator / denominator;
+  }
+
+  /**
    * Create chart container if it doesn't exist
    */
   createChartContainer(containerId) {
@@ -1002,17 +3757,13 @@ class StockDashboard {
 
 // Initialize dashboard when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-  // Register Service Worker for PWA functionality
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js')
-      .then(registration => {
-        console.log('SW registered: ', registration);
-      })
-      .catch(registrationError => {
-        console.log('SW registration failed: ', registrationError);
-      });
-  }
-
+  console.log('DOM loaded, initializing dashboard...');
+  
   // Initialize dashboard
-  new StockDashboard();
+  try {
+    window.dashboard = new StockDashboard();
+    console.log('Dashboard initialized successfully');
+  } catch (error) {
+    console.error('Error initializing dashboard:', error);
+  }
 });
