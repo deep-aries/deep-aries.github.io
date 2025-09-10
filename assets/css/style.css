@@ -18,6 +18,37 @@
   --metric-bg: #f8fafc;
 }
 
+/* Tab and Card Descriptions */
+.tab-description {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.tab-description h3 {
+  margin: 0 0 10px 0;
+  color: var(--primary);
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.tab-description p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.card-description {
+  color: var(--muted2);
+  font-size: 0.9rem;
+  margin: 0 0 15px 0;
+  line-height: 1.5;
+  padding: 0 5px;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -64,14 +95,24 @@ header h1 {
 .grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 24px;
-  max-width: 1400px;
+  gap: 20px;
+  max-width: 1600px;
   margin: 0 auto;
 }
 
-@media (min-width: 1100px) {
+@media (min-width: 1200px) {
   .grid {
     grid-template-columns: 1fr 1fr;
+  }
+  /* Force single-column layout in Portfolio tab */
+  #portfolio .grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (min-width: 1600px) {
+  .grid {
+    grid-template-columns: 1fr 1fr 1fr;
   }
   /* Force single-column layout in Portfolio tab */
   #portfolio .grid {
@@ -84,9 +125,12 @@ header h1 {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 16px;
-  padding: 24px;
+  padding: 20px;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
   transition: all 0.3s ease;
+  min-height: 400px;
+  display: flex;
+  flex-direction: column;
 }
 
 .card:hover {
@@ -114,10 +158,11 @@ header h1 {
   gap: 12px;
   flex-wrap: wrap;
   align-items: center;
-  margin: 16px 0 20px;
-  padding: 16px;
+  margin: 12px 0 16px;
+  padding: 12px;
   background: #f8fafc;
   border-radius: 12px;
+  flex-shrink: 0;
   border: 1px solid var(--border);
 }
 
@@ -495,12 +540,15 @@ footer {
 
 /* Chart Containers */
 .chart-container {
-  min-height: 300px;
+  min-height: 350px;
   margin: 16px 0;
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 16px;
   background: white;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Performance Metrics */
@@ -794,6 +842,11 @@ input[type="number"]:focus {
   .chart-container {
     min-height: 300px;
     padding: 12px;
+  }
+  
+  .card {
+    min-height: 350px;
+    padding: 16px;
   }
   
   .fullscreen-content {

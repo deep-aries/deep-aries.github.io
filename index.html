@@ -18,6 +18,9 @@
   <!-- Libraries -->
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <script src="assets/js/technical-analysis.js"></script>
+  <script src="assets/js/chart-utils.js"></script>
+  <script src="assets/js/risk-management.js"></script>
 </head>
 <body>
   <header>
@@ -118,20 +121,6 @@
         </div>
     </section>
 
-      <!-- FUTURE (Heatmap) -->
-    <section class="card">
-        <h2>🔮 AI Prediction Heatmap</h2>
-        <p class="note">Rows: Tickers, Columns: Dates, Values: AI Model Predictions</p>
-      <div class="controls">
-          
-          <button id="fullscreen_heatmap_btn">🔍 Fullscreen</button>
-        </div>
-        <div class="chart-container">
-      <div id="heatmap"></div>
-      </div>
-    </section>
-
-
       <!-- TEST (Index Time Series) -->
     <section class="card">
         <h2>📊 Index Time Series</h2>
@@ -146,28 +135,71 @@
         </div>
     </section>
 
-    <!-- Debug Info -->
+      <!-- FUTURE (Heatmap) -->
     <section class="card">
-      <h2>🔧 Debug Information</h2>
-      <p class="note">System status and debugging information</p>
+        <h2>🔮 AI Prediction Heatmap</h2>
+        <p class="note">Rows: Tickers, Columns: Dates, Values: AI Model Predictions</p>
       <div class="controls">
-        <button id="test_render_btn" style="background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">🧪 Test Render</button>
-        <button id="force_render_btn" style="background: #28a745; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">🚀 Force Render</button>
-      </div>
-      <div id="debug-info" style="background: #f0f0f0; padding: 10px; margin: 10px 0; border-radius: 5px; font-family: monospace; font-size: 12px;">
-        <div>🔄 Loading market data...</div>
+          
+          <button id="fullscreen_heatmap_btn">🔍 Fullscreen</button>
+        </div>
+        <div class="chart-container">
+      <div id="heatmap"></div>
       </div>
     </section>
+
     </div>
       </div>
 
   <!-- Analysis Tab -->
   <div class="tab-content" id="analysis">
     <div class="grid">
+      <!-- Technical Analysis Header -->
+    <section class="card" style="grid-column: 1 / -1; min-height: auto; padding: 16px 20px;">
+        <h2 style="margin: 0 0 8px; font-size: 1.4rem;">🔍 Technical Analysis</h2>
+        <p style="margin: 0; font-size: 0.95rem; color: #6b7280;">Advanced technical indicators and chart analysis tools to help you make informed trading decisions. Analyze price trends, momentum, and market patterns using professional-grade indicators.</p>
+    </section>
+
+      <!-- Candlestick Chart -->
+    <section class="card">
+        <h2>🕯️ Candlestick Chart</h2>
+        <p class="card-description">Visualize price movements with OHLC (Open, High, Low, Close) data and volume analysis for comprehensive market insight.</p>
+      <div class="controls">
+          <label>Market:</label>
+          <select id="candle_market_select">
+            <option value="csi300">CSI 300</option>
+            <option value="csi500">CSI 500</option>
+            <option value="csi1000">CSI 1000</option>
+            <option value="all">All Markets</option>
+          </select>
+          <label>Ticker:</label>
+          <select id="candle_ticker_select"></select>
+          <label>Period:</label>
+          <select id="candle_period_select">
+            <option value="1D">1 Day</option>
+            <option value="1W">1 Week</option>
+            <option value="1M">1 Month</option>
+            <option value="3M">3 Months</option>
+          </select>
+          <button id="update_candle_btn">Update</button>
+        </div>
+        <div class="chart-container">
+          <div id="candlestick_chart"></div>
+      </div>
+    </section>
+
       <!-- Technical Indicators -->
-      <section class="card">
+    <section class="card">
         <h2>📈 Technical Indicators</h2>
+        <p class="card-description">Calculate and visualize various technical indicators to identify market trends and potential trading opportunities.</p>
         <div class="controls">
+          <label>Market:</label>
+          <select id="tech_market_select">
+            <option value="csi300">CSI 300</option>
+            <option value="csi500">CSI 500</option>
+            <option value="csi1000">CSI 1000</option>
+            <option value="all">All Markets</option>
+          </select>
           <label>Ticker:</label>
           <select id="tech_ticker_select"></select>
           <label>Indicator:</label>
@@ -185,30 +217,18 @@
         </div>
     </section>
 
-      <!-- Candlestick Chart -->
-    <section class="card">
-        <h2>🕯️ Candlestick Chart</h2>
-      <div class="controls">
-          <label>Ticker:</label>
-          <select id="candle_ticker_select"></select>
-          <label>Period:</label>
-          <select id="candle_period_select">
-            <option value="1D">1 Day</option>
-            <option value="1W">1 Week</option>
-            <option value="1M">1 Month</option>
-            <option value="3M">3 Months</option>
-          </select>
-          <button id="update_candle_btn">Update</button>
-        </div>
-        <div class="chart-container">
-          <div id="candlestick_chart"></div>
-      </div>
-    </section>
-
       <!-- Volume Analysis -->
     <section class="card">
         <h2>📊 Volume Analysis</h2>
+        <p class="card-description">Analyze trading volume patterns to understand market sentiment and confirm price movements with volume-based indicators.</p>
         <div class="controls">
+          <label>Market:</label>
+          <select id="volume_market_select">
+            <option value="csi300">CSI 300</option>
+            <option value="csi500">CSI 500</option>
+            <option value="csi1000">CSI 1000</option>
+            <option value="all">All Markets</option>
+          </select>
           <label>Ticker:</label>
           <select id="volume_ticker_select"></select>
           <button id="update_volume_btn">Analyze</button>
@@ -219,9 +239,24 @@
     </section>
 
       <!-- Correlation Matrix -->
-      <section class="card">
+    <section class="card">
         <h2>🔗 Correlation Matrix</h2>
+        <p class="card-description">Analyze correlation relationships between different stocks across markets to identify diversification opportunities and market dependencies.</p>
         <div class="controls">
+          <label>Market 1:</label>
+          <select id="correlation_market1_select">
+            <option value="csi300">CSI 300</option>
+            <option value="csi500">CSI 500</option>
+            <option value="csi1000">CSI 1000</option>
+            <option value="all">All Markets</option>
+          </select>
+          <label>Market 2:</label>
+          <select id="correlation_market2_select">
+            <option value="csi300">CSI 300</option>
+            <option value="csi500">CSI 500</option>
+            <option value="csi1000">CSI 1000</option>
+            <option value="all">All Markets</option>
+          </select>
           <label>Select Tickers (Max 10):</label>
           <select id="correlation_tickers" multiple></select>
           <button id="update_correlation_btn">Analyze</button>
@@ -237,9 +272,9 @@
   <div class="tab-content active" id="portfolio">
     <div class="grid">
       <!-- DeepAries Header Panel (top inside Portfolio tab) -->
-      <section class="card deeparies-section">
-        <h2>🔬 DeepAries Adaptive Rebalancing</h2>
-        <p class="note">Interactive demonstration of adaptive rebalancing and portfolio performance analysis</p>
+      <section class="card deeparies-section" style="min-height: auto; padding: 12px 20px;">
+        <h2 style="margin: 0 0 8px; font-size: 1.3rem;">🔬 DeepAries Adaptive Rebalancing</h2>
+        <p class="note" style="margin: 0; font-size: 0.9rem;">Interactive demonstration of adaptive rebalancing and portfolio performance analysis</p>
       </section>
       <!-- Portfolio & Model Performance -->
     <section class="card">
@@ -324,10 +359,6 @@
             <span class="metric-label">Beta</span>
             <span class="metric-value" id="beta_metric">-</span>
           </div>
-          <div class="metric" title="Fraction of variance in portfolio returns explained by the benchmark (0–1)." data-tip="Fraction of variance in portfolio returns explained by the benchmark (0–1).">
-            <span class="metric-label">R²</span>
-            <span class="metric-value" id="r2_metric">-</span>
-          </div>
         </div>
         <!-- removed unused large chart to reduce blank space -->
         <div id="performance_summary" class="summary-grid"></div>
@@ -382,11 +413,43 @@
 
   <!-- Risk Tab -->
   <div class="tab-content" id="risk">
+    <div class="tab-description">
+      <h3>⚠️ Risk Management <span style="background: #fbbf24; color: #92400e; padding: 4px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; margin-left: 8px;">🚧 UNDER DEVELOPMENT</span></h3>
+      <p>Advanced risk assessment tools to evaluate portfolio risk exposure, calculate Value at Risk (VaR), and perform stress testing under various market scenarios. These tools help quantify potential losses and assess portfolio resilience under adverse market conditions.</p>
+      <div style="margin: 10px 0; padding: 12px; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 6px;">
+        <p style="margin: 0; color: #92400e; font-size: 0.9rem;"><strong>⚠️ Notice:</strong> This section is currently under development and improvement. Some features may not be fully functional or may require additional data sources.</p>
+      </div>
+      <div style="margin-top: 15px; padding: 15px; background: #f8fafc; border-radius: 6px; border-left: 4px solid #2563eb;">
+        <h4 style="margin: 0 0 10px 0; color: #2563eb; font-size: 14px;">📚 Key Concepts:</h4>
+        <ul style="margin: 0; padding-left: 20px; font-size: 13px; color: #4a5568;">
+          <li><strong>VaR (Value at Risk):</strong> Maximum potential loss over a specified time horizon with a given confidence level</li>
+          <li><strong>Expected Shortfall:</strong> Average loss beyond the VaR threshold (also known as Conditional VaR)</li>
+          <li><strong>Stress Testing:</strong> Simulation of extreme market conditions to assess portfolio resilience</li>
+          <li><strong>Risk Metrics:</strong> Volatility, Sharpe ratio, maximum drawdown, and beta calculations</li>
+        </ul>
+      </div>
+    </div>
     <div class="grid">
       <!-- VaR Analysis -->
       <section class="card">
         <h2>⚠️ VaR (Value at Risk) Analysis</h2>
+        <p class="card-description">Calculate the maximum potential loss over a specified time horizon with a given confidence level using historical data analysis. VaR answers the question: "What is the worst loss I can expect over a given time period with a given confidence level?"</p>
+        <div style="margin: 10px 0; padding: 10px; background: #fef3c7; border-radius: 4px; font-size: 12px;">
+          <strong>💡 How it works:</strong> Uses historical price data to calculate daily returns, then determines the worst-case scenario based on your selected confidence level (95% or 99%). The Expected Shortfall shows the average loss beyond the VaR threshold.
+        </div>
+        <div style="margin: 10px 0; padding: 10px; background: #e0f2fe; border-radius: 4px; font-size: 12px;">
+          <strong>⏰ Time Horizon:</strong> This represents the holding period for your investment. For example, "1 Day" means the VaR shows the maximum loss you could expect over a single trading day. "5 Days" means over a week, "30 Days" means over a month. The calculation uses daily returns and scales them to your selected time period.
+        </div>
         <div class="controls">
+          <label>Market:</label>
+          <select id="var_market_select">
+            <option value="csi300">CSI 300</option>
+            <option value="csi500">CSI 500</option>
+            <option value="csi1000">CSI 1000</option>
+            <option value="all">All Markets</option>
+          </select>
+          <label>Ticker:</label>
+          <select id="var_ticker_select"></select>
           <label>Confidence Level:</label>
           <select id="var_confidence">
             <option value="0.95">95%</option>
@@ -419,7 +482,20 @@
       <!-- Stress Testing -->
     <section class="card">
         <h2>🌪️ Stress Testing</h2>
+        <p class="card-description">Simulate extreme market conditions to assess portfolio resilience and potential losses under adverse scenarios. Stress testing helps identify vulnerabilities and prepare for market crises.</p>
+        <div style="margin: 10px 0; padding: 10px; background: #fef3c7; border-radius: 4px; font-size: 12px;">
+          <strong>💡 How it works:</strong> Applies predefined shock scenarios (market crash, recession, volatility spike) to historical returns data to simulate how your portfolio would perform under extreme conditions. The chart shows the distribution of stressed returns.
+        </div>
       <div class="controls">
+          <label>Market:</label>
+          <select id="stress_market_select">
+            <option value="csi300">CSI 300</option>
+            <option value="csi500">CSI 500</option>
+            <option value="csi1000">CSI 1000</option>
+            <option value="all">All Markets</option>
+          </select>
+          <label>Ticker:</label>
+          <select id="stress_ticker_select"></select>
           <label>Scenario:</label>
           <select id="stress_scenario">
             <option value="market_crash">Market Crash (-20%)</option>
@@ -434,67 +510,53 @@
         </div>
       </section>
 
-      <!-- Risk Metrics -->
+      <!-- Risk Metrics Dashboard -->
       <section class="card">
-        <h2>📊 Risk Metrics</h2>
+        <h2>📊 Risk Metrics Dashboard</h2>
+        <p class="card-description">Comprehensive risk metrics including volatility, Sharpe ratio, and maximum drawdown for selected assets. These metrics provide a complete picture of risk-adjusted performance.</p>
+        <div style="margin: 10px 0; padding: 10px; background: #fef3c7; border-radius: 4px; font-size: 12px;">
+          <strong>💡 Key Metrics:</strong>
+          <ul style="margin: 5px 0 0 0; padding-left: 15px;">
+            <li><strong>Volatility:</strong> Standard deviation of returns (higher = more risk)</li>
+            <li><strong>Sharpe Ratio:</strong> Risk-adjusted return (higher = better risk-adjusted performance)</li>
+            <li><strong>Max Drawdown:</strong> Largest peak-to-trough decline (lower = better)</li>
+            <li><strong>Beta:</strong> Sensitivity to market movements (1.0 = market average)</li>
+          </ul>
+        </div>
+        <div class="controls">
+          <label>Market:</label>
+          <select id="risk_metrics_market_select">
+            <option value="csi300">CSI 300</option>
+            <option value="csi500">CSI 500</option>
+            <option value="csi1000">CSI 1000</option>
+            <option value="all">All Markets</option>
+          </select>
+          <label>Ticker:</label>
+          <select id="risk_metrics_ticker_select"></select>
+          <button id="calculate_risk_metrics_btn">Calculate Metrics</button>
+        </div>
         <div class="risk-metrics-grid">
+          <div class="metric">
+            <span class="metric-label">Volatility</span>
+            <span class="metric-value" id="volatility">-</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Sharpe Ratio</span>
+            <span class="metric-value" id="sharpe_ratio">-</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Max Drawdown</span>
+            <span class="metric-value" id="max_drawdown">-</span>
+          </div>
           <div class="metric">
             <span class="metric-label">Beta</span>
             <span class="metric-value" id="beta">-</span>
-          </div>
-          <div class="metric">
-            <span class="metric-label">Alpha</span>
-            <span class="metric-value" id="alpha">-</span>
-          </div>
-          <div class="metric">
-            <span class="metric-label">Information Ratio</span>
-            <span class="metric-value" id="information_ratio">-</span>
-          </div>
-          <div class="metric">
-            <span class="metric-label">Treynor Ratio</span>
-            <span class="metric-value" id="treynor_ratio">-</span>
           </div>
         </div>
         <div class="chart-container">
           <div id="risk_metrics_chart"></div>
         </div>
       </section>
-
-      <!-- Portfolio Risk Analysis -->
-      <section class="card">
-        <h2>📈 Portfolio Risk Analysis</h2>
-        <p class="note">Comprehensive risk analysis of DeepAries portfolio performance</p>
-        <div class="chart-container">
-          <div id="portfolio_risk_analysis"></div>
-        </div>
-      </section>
-
-      <!-- Drawdown Analysis -->
-      <section class="card">
-        <h2>📉 Drawdown Analysis</h2>
-        <p class="note">Maximum drawdown and recovery period analysis</p>
-        <div class="chart-container">
-          <div id="drawdown_analysis"></div>
-        </div>
-      </section>
-
-      <!-- Risk-Adjusted Returns -->
-      <section class="card">
-        <h2>⚖️ Risk-Adjusted Returns</h2>
-        <p class="note">Sharpe ratio, Sortino ratio, and other risk-adjusted performance metrics</p>
-        <div class="chart-container">
-          <div id="risk_adjusted_returns"></div>
-        </div>
-      </section>
-
-      <!-- Correlation Analysis -->
-      <section class="card">
-        <h2>🔗 Asset Correlation Analysis</h2>
-        <p class="note">Correlation matrix and diversification analysis</p>
-        <div class="chart-container">
-          <div id="correlation_analysis"></div>
-      </div>
-    </section>
   </div>
   </div>
 
@@ -504,7 +566,6 @@
     <p>© 2025 DeepAries Research • CIKM 2025 Accepted • <a href="https://github.com/deep-aries/deep-aries.github.io" target="_blank">GitHub Repository</a></p>
   </footer>
 
-  <script src="assets/js/advanced-features.js" onload="console.log('✅ Advanced features loaded')" onerror="console.error('❌ Advanced features failed to load')"></script>
   <script src="assets/js/dashboard.js" onload="console.log('✅ Dashboard script loaded')" onerror="console.error('❌ Dashboard script failed to load')"></script>
   
   <!-- Simple Tab Switching -->

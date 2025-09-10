@@ -15,4 +15,3 @@ exclude:
   - .gitignore
   - Gemfile
   - Gemfile.lock
-  - TODOs.md

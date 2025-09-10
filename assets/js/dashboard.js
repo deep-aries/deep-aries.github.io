@@ -16,6 +16,11 @@ class DeepAriesDashboard {
     this.currentTab = 'dashboard';
     this.userPreferences = this.loadUserPreferences();
     
+    // Initialize new modules
+    this.technicalAnalysis = new TechnicalAnalysis();
+    this.riskManagement = new RiskManagement();
+    this.chartUtils = new ChartUtils();
+    
     // Configuration for external data sources
     this.config = {
       useExternalData: false, // Disabled for Market Data: use local market_past.csv
@@ -56,7 +61,6 @@ class DeepAriesDashboard {
       const intervalMs = this.config.dataRefreshInterval || 300000;
       const runFetch = async () => {
         try {
-          console.log('[REFRESH] Fetching external data for tickers:', tickers);
           const data = await this.loadYahooFinanceData(tickers, '1y', '1d');
           if (data && data.market && data.market.length > 0) {
             // Merge with current data and re-render
@@ -65,7 +69,6 @@ class DeepAriesDashboard {
             this.data.market = merged;
             const byTicker = this.groupMarket(this.data.market);
             this.renderTimeSeries('timeseries', byTicker.byTicker, tickers, dateRange.startDate, dateRange.endDate);
-            console.log('[REFRESH] Market chart updated');
           }
         } catch (e) {
           console.warn('[REFRESH] External refresh failed:', e.message);
@@ -75,7 +78,6 @@ class DeepAriesDashboard {
       runFetch();
       // schedule
       this._marketRefreshTimer = setInterval(runFetch, intervalMs);
-      console.log('[REFRESH] Auto refresh started, interval(ms):', intervalMs);
     } catch (error) {
       console.warn('[WARN] Failed to start auto refresh:', error.message);
     }
@@ -111,9 +113,6 @@ class DeepAriesDashboard {
       await new Promise(resolve => setTimeout(resolve, 100));
       
       // Initialize advanced features if available
-      if (typeof AdvancedFeatures !== 'undefined') {
-        this.advancedFeatures = new AdvancedFeatures(this);
-      }
       
       // Setup event listeners
       this.setupEventListeners();
@@ -169,6 +168,10 @@ class DeepAriesDashboard {
         test 
       };
       
+      // Set data for new modules
+      this.technicalAnalysis.setData(combinedMarket);
+      this.riskManagement.setData(combinedMarket);
+      
       console.log('[SUCCESS] All data loaded:', {
         market: this.data.market?.length || 0,
         marketPast: this.data.marketPast?.length || 0,
@@ -176,6 +179,16 @@ class DeepAriesDashboard {
         result: this.data.result?.length || 0,
         test: this.data.test?.length || 0
       });
+      
+      // Initialize Technical Analysis and Risk Management tabs after data is loaded
+      setTimeout(() => {
+        this.initializeAnalysisTab();
+        this.initializeRiskTab();
+        console.log('[SUCCESS] Technical Analysis and Risk Management tabs initialized');
+      }, 200);
+      
+      // Log available markets for debugging
+      this.logAvailableMarkets();
       
       console.log('[DATA] Market data from market_past only:', {
         pastData: marketPast?.length || 0,
@@ -923,6 +936,14 @@ class DeepAriesDashboard {
       console.log('[SUCCESS] Run stress test button listener added');
     }
 
+    const calculateRiskMetricsBtn = document.getElementById('calculate_risk_metrics_btn');
+    if (calculateRiskMetricsBtn) {
+      calculateRiskMetricsBtn.addEventListener('click', () => {
+        this.calculateRiskMetrics();
+      });
+      console.log('[SUCCESS] Calculate risk metrics button listener added');
+    }
+
   }
 
   renderInitialCharts() {
@@ -1024,30 +1045,46 @@ class DeepAriesDashboard {
       }
 
       // Result data - with default values
-      if (this.data.result && this.data.result.length > 0) {
-        console.log('[RESULT] Processing result data:', this.data.result.length, 'rows');
-        this.setupResultSection();
-        console.log('[SUCCESS] Result section setup');
-        this.updateDebugInfo('[SUCCESS] Result section setup');
-      } else {
-        console.warn('[WARN] No result data available');
-        this.updateDebugInfo('[WARN] No result data available');
+      try {
+        if (this.data.result && this.data.result.length > 0) {
+          console.log('[RESULT] Processing result data:', this.data.result.length, 'rows');
+          this.setupResultSection();
+          console.log('[SUCCESS] Result section setup');
+          this.updateDebugInfo('[SUCCESS] Result section setup');
+        } else {
+          console.warn('[WARN] No result data available');
+          this.updateDebugInfo('[WARN] No result data available');
+        }
+      } catch (resultError) {
+        console.error('[ERROR] Error processing result data:', resultError);
+        this.updateDebugInfo('[ERROR] Error processing result data: ' + resultError.message);
       }
 
       // Test data - with default values
-      if (this.data.test && this.data.test.length > 0) {
-        console.log('[TEST] Processing test data:', this.data.test.length, 'rows');
-        const indexMarkets = this.unique(this.data.test.map(r => r.market).filter(Boolean)).sort();
-        this.populateSelect('index_market_select', indexMarkets);
-        
-        // Select first market by default
-        const defaultMarket = indexMarkets[0];
-        this.renderIndexSeries('index_series', this.data.test, defaultMarket);
-        console.log('[SUCCESS] Index series chart rendered with default market:', defaultMarket);
-        this.updateDebugInfo(`[SUCCESS] Index series chart rendered with market: ${defaultMarket}`);
-      } else {
-        console.warn('[WARN] No test data available');
-        this.updateDebugInfo('[WARN] No test data available');
+      try {
+        if (this.data.test && this.data.test.length > 0) {
+          console.log('[TEST] Processing test data:', this.data.test.length, 'rows');
+          const indexMarkets = this.unique(this.data.test.map(r => r.market).filter(Boolean)).sort();
+          console.log('[TEST] Available markets:', indexMarkets);
+          this.populateSelect('index_market_select', indexMarkets);
+          
+          // Select first market by default and render immediately
+          const defaultMarket = indexMarkets[0];
+          console.log('[TEST] Rendering with default market:', defaultMarket);
+          
+          // Add a small delay to ensure DOM is ready
+          setTimeout(() => {
+            this.renderIndexSeries('index_series', this.data.test, defaultMarket);
+            console.log('[SUCCESS] Index series chart rendered with default market:', defaultMarket);
+            this.updateDebugInfo(`[SUCCESS] Index series chart rendered with market: ${defaultMarket}`);
+          }, 100);
+        } else {
+          console.warn('[WARN] No test data available');
+          this.updateDebugInfo('[WARN] No test data available');
+        }
+      } catch (testError) {
+        console.error('[ERROR] Error processing test data:', testError);
+        this.updateDebugInfo('[ERROR] Error processing test data: ' + testError.message);
       }
       
       console.log('[SUCCESS] Initial charts rendered with default values');
@@ -1623,27 +1660,39 @@ class DeepAriesDashboard {
       .sort((a, b) => new Date(a) - new Date(b));
 
     this.populateSelect('model_select', models);
-    this.populateSelect('date_select', dates);
+    // Note: date_select element doesn't exist in HTML, skipping
+    console.log('[INFO] Skipping date_select population - element not found in HTML');
     
     this.updateResultSection();
   }
 
   updateResultSection() {
     const modelSel = document.getElementById('model_select');
-    const dateSel = document.getElementById('date_select');
+    // Note: date_select element doesn't exist in HTML
+    const dateSel = null;
+    
+    // Check if modelSel exists
+    if (!modelSel) {
+      console.warn('[WARN] model_select element not found');
+      return;
+    }
     const models = this.unique(this.data.result.map(r => r.model).filter(Boolean)).sort();
     const dates = this.unique(this.data.result.map(r => r.date).filter(Boolean))
       .sort((a, b) => new Date(a) - new Date(b));
 
-    const mdl = modelSel.value || models[0];
-    const dt = dateSel.value || dates[dates.length - 1];
+    const mdl = modelSel?.value || models[0];
+    const dt = dateSel?.value || dates[dates.length - 1];
 
     const rows = this.data.result.filter(r => r.model === mdl && r.date === dt);
 
     // Update metadata
     const info = rows[0] || {};
     const metaEl = document.getElementById('portfolio_meta');
-    metaEl.textContent = `Model: ${mdl} • Date: ${dt} • Market: ${info.market ?? "—"} • Ticker: ${info.ticker ?? "—"} • Pred Len: ${info.pred_len ?? "—"} • Final PV: ${info["Final Portfolio Value"] ?? "—"}`;
+    if (metaEl) {
+      metaEl.textContent = `Model: ${mdl} • Date: ${dt} • Market: ${info.market ?? "—"} • Ticker: ${info.ticker ?? "—"} • Pred Len: ${info.pred_len ?? "—"} • Final PV: ${info["Final Portfolio Value"] ?? "—"}`;
+    } else {
+      console.log('[INFO] portfolio_meta element not found - skipping metadata update');
+    }
 
     // Top-5 portfolio bars
     let t5 = [], w5 = [];
@@ -1659,11 +1708,22 @@ class DeepAriesDashboard {
         w5 = topList.map(() => 1 / topList.length);
       }
     }
-    this.renderPortfolioBars("portfolio_bars", t5, w5, "Weight");
+    // Check if portfolio_bars element exists before rendering
+    const portfolioBarsElement = document.getElementById("portfolio_bars");
+    if (portfolioBarsElement) {
+      this.renderPortfolioBars("portfolio_bars", t5, w5, "Weight");
+    } else {
+      console.log('[INFO] portfolio_bars element not found - skipping portfolio bars render');
+    }
 
     // Portfolio value chart
-    const sameMarket = this.data.result.filter(r => r.market === (rows[0]?.market ?? rows[0]?.market));
-    this.renderPortfolioValue("portfolio_value", sameMarket.length ? sameMarket : this.data.result);
+    const portfolioValueElement = document.getElementById("portfolio_value");
+    if (portfolioValueElement) {
+      const sameMarket = this.data.result.filter(r => r.market === (rows[0]?.market ?? rows[0]?.market));
+      this.renderPortfolioValue("portfolio_value", sameMarket.length ? sameMarket : this.data.result);
+    } else {
+      console.log('[INFO] portfolio_value element not found - skipping portfolio value render');
+    }
 
     // Recompute performance metrics using current selections
     this.calculatePortfolioMetrics(rows);
@@ -1810,9 +1870,13 @@ class DeepAriesDashboard {
             const meanP = this.calcAvgDaily(slicedPv), meanB = this.calcAvgDaily(idxReturns);
             let cov=0, varB=0; for (let i=0;i<slicedPv.length;i++){ cov += (slicedPv[i]-meanP)*(idxReturns[i]-meanB); varB += Math.pow(idxReturns[i]-meanB,2);} cov/=slicedPv.length; varB/=idxReturns.length;
             beta = varB===0?0: cov/varB; alpha = (meanP - beta*meanB)*252; // approximate annual alpha
-            // r2
-            const varP = this.calcVolAnnual(slicedPv)/Math.sqrt(252); // daily variance proxy
-            r2 = varP===0?0: Math.min(1, Math.max(0, (beta*beta*varB)/(varP*varP)));
+            // r2 - coefficient of determination
+            const ssRes = slicedPv.reduce((sum, p, i) => {
+              const predicted = alpha/252 + beta * idxReturns[i];
+              return sum + Math.pow(p - predicted, 2);
+            }, 0);
+            const ssTot = slicedPv.reduce((sum, p) => sum + Math.pow(p - meanP, 2), 0);
+            r2 = ssTot === 0 ? 0 : Math.max(0, Math.min(1, 1 - (ssRes / ssTot)));
           }
           const setText = (id, val) => { const el=document.getElementById(id); if (el) el.textContent = val; };
           setText('cagr', isFinite(cagr)? (cagr*100).toFixed(2)+'%':'-');
@@ -1821,7 +1885,6 @@ class DeepAriesDashboard {
           setText('information_ratio', ir!=null? ir.toFixed(2):'-');
           setText('alpha_metric', alpha!=null? (alpha*100).toFixed(2)+'%':'-');
           setText('beta_metric', beta!=null? beta.toFixed(2):'-');
-          setText('r2_metric', r2!=null? r2.toFixed(2):'-');
         }
       }
     } catch(_) {}
@@ -1835,36 +1898,79 @@ class DeepAriesDashboard {
   sharpeFromReturns(rets) { const m = this.calcAvgDaily(rets); const v = this.calcVolAnnual(rets); return v===0?0:(m*252)/v; }
 
   renderIndexSeries(elemId, rows, marketName) {
+    console.log(`[INDEX] Starting renderIndexSeries for ${elemId}, market: ${marketName}`);
+    console.log(`[INDEX] Data rows count: ${rows ? rows.length : 0}`);
+    
     if (!rows || !rows.length) {
+      console.warn('[INDEX] No data provided');
       const el = document.getElementById(elemId);
       if (el) el.innerHTML = '<div style="padding:12px;color:#6b7280">No index data available.</div>';
       return;
     }
+    
     let data = rows;
-    if (marketName) data = rows.filter(r => r.market === marketName);
+    if (marketName) {
+      data = rows.filter(r => r.market === marketName);
+      console.log(`[INDEX] Filtered data for market ${marketName}: ${data.length} rows`);
+    }
+    
     data = data.filter(r => r.date && r.close != null);
+    console.log(`[INDEX] Valid data after filtering: ${data.length} rows`);
+    
+    if (data.length === 0) {
+      console.warn('[INDEX] No valid data after filtering');
+      const el = document.getElementById(elemId);
+      if (el) el.innerHTML = '<div style="padding:12px;color:#6b7280">No valid data for selected market.</div>';
+      return;
+    }
+    
     data.sort((a, b) => new Date(a.date) - new Date(b.date));
+    console.log(`[INDEX] Data sorted, first date: ${data[0].date}, last date: ${data[data.length-1].date}`);
 
     const trace = {
       type: "scatter",
       mode: "lines",
       name: marketName || "index",
       x: data.map(r => r.date),
-      y: data.map(r => r.close),
-      line: { width: 2, color: '#2563eb' }
+      y: data.map(r => parseFloat(r.close)),
+      line: { width: 2, color: '#2563eb' },
+      hovertemplate: '<b>%{fullData.name}</b><br>' +
+                     'Date: %{x}<br>' +
+                     'Close: $%{y:,.2f}<br>' +
+                     '<extra></extra>'
     };
 
     const layout = {
-      margin: { t: 20, r: 10, b: 40, l: 50 },
-      xaxis: { title: "Date" },
-      yaxis: { title: "Close Price" },
-      title: `${marketName || 'Index'} Time Series`
+      margin: { t: 40, r: 10, b: 40, l: 50 },
+      xaxis: { 
+        title: "Date",
+        tickformat: "%Y-%m-%d"
+      },
+      yaxis: { 
+        title: "Close Price",
+        tickformat: "$,.0f"
+      },
+      title: `${marketName ? marketName.toUpperCase() : 'Index'} Time Series`,
+      showlegend: true
     };
 
     const el = document.getElementById(elemId);
-    if (!el) return;
+    if (!el) {
+      console.error(`[INDEX] Element ${elemId} not found`);
+      return;
+    }
+    
+    console.log(`[INDEX] Rendering chart with ${data.length} data points`);
     Plotly.newPlot(elemId, [trace], layout, { responsive: true }).then(() => {
-      if (Plotly.Plots?.resize) Plotly.Plots.resize(el);
+      console.log(`[INDEX] Chart rendered successfully`);
+      setTimeout(() => {
+        if (Plotly.Plots?.resize) {
+          Plotly.Plots.resize(el);
+          console.log(`[INDEX] Chart resized`);
+        }
+      }, 100);
+    }).catch(error => {
+      console.error(`[INDEX] Error rendering chart:`, error);
     });
   }
 
@@ -1896,6 +2002,90 @@ class DeepAriesDashboard {
       console.error(`❌ Error populating ${selectId}:`, error);
       this.updateDebugInfo(`❌ Error populating ${selectId}: ${error.message}`);
     }
+  }
+
+  /**
+   * Set value for a select element
+   * @param {string} selectId - Select element ID
+   * @param {string} value - Value to set
+   */
+  setSelectValue(selectId, value) {
+    const select = document.getElementById(selectId);
+    if (!select) {
+      console.warn(`⚠️ Select element ${selectId} not found for setting value`);
+      return;
+    }
+    
+    try {
+      select.value = value;
+      console.log(`✅ Set ${selectId} value to: ${value}`);
+    } catch (error) {
+      console.error(`❌ Error setting ${selectId} value:`, error);
+    }
+  }
+
+  /**
+   * Get tickers filtered by market
+   * @param {string} market - Market identifier (csi300, csi500, csi1000, all)
+   * @returns {Array} Array of ticker symbols
+   */
+  getTickersByMarket(market) {
+    if (!this.data.market || !Array.isArray(this.data.market)) {
+      console.warn('[MARKET] No market data available');
+      return [];
+    }
+
+    let filteredData = this.data.market;
+    
+    if (market !== 'all') {
+      // Filter by market using the market column in the data
+      filteredData = this.data.market.filter(d => {
+        const dataMarket = d.market || '';
+        return dataMarket === market;
+      });
+    }
+
+    const tickers = [...new Set(filteredData.map(d => d.ticker).filter(Boolean))].sort();
+    console.log(`[MARKET] Found ${tickers.length} tickers for market: ${market}`, {
+      totalData: this.data.market.length,
+      filteredData: filteredData.length,
+      sampleTickers: tickers.slice(0, 5)
+    });
+    return tickers;
+  }
+
+  /**
+   * Update ticker select based on market selection
+   * @param {string} marketSelectId - Market select element ID
+   * @param {string} tickerSelectId - Ticker select element ID
+   */
+  updateTickerSelect(marketSelectId, tickerSelectId) {
+    const marketSelect = document.getElementById(marketSelectId);
+    const tickerSelect = document.getElementById(tickerSelectId);
+    
+    if (!marketSelect || !tickerSelect) {
+      console.warn(`[MARKET] Market or ticker select not found: ${marketSelectId}, ${tickerSelectId}`);
+      return;
+    }
+
+    const selectedMarket = marketSelect.value;
+    const tickers = this.getTickersByMarket(selectedMarket);
+    
+    // Clear and populate ticker select
+    tickerSelect.innerHTML = '';
+    tickers.forEach(ticker => {
+      const option = document.createElement('option');
+      option.value = ticker;
+      option.textContent = ticker;
+      tickerSelect.appendChild(option);
+    });
+
+    // Set default selection
+    if (tickers.length > 0) {
+      tickerSelect.value = tickers[0];
+    }
+
+    console.log(`[MARKET] Updated ${tickerSelectId} with ${tickers.length} tickers for market: ${selectedMarket}`);
   }
 
   sanitizePortfolioString(s) {
@@ -2007,9 +2197,13 @@ class DeepAriesDashboard {
       if (this.data.test && this.data.test.length > 0) {
         const indexMarkets = this.unique(this.data.test.map(r => r.market).filter(Boolean)).sort();
         const defaultMarket = indexMarkets[0];
+        console.log('🔄 Force rendering index series with market:', defaultMarket);
         this.renderIndexSeries('index_series', this.data.test, defaultMarket);
         console.log('✅ Force rendered index series');
         this.updateDebugInfo('✅ Force rendered index series');
+      } else {
+        console.warn('⚠️ No test data available for force render');
+        this.updateDebugInfo('⚠️ No test data available for force render');
       }
       
     } catch (error) {
@@ -2033,6 +2227,17 @@ class DeepAriesDashboard {
       case 'analysis':
         console.log('🔍 Initializing Analysis tab...');
         this.initializeAnalysisTab();
+        
+        // Also try to render a default chart if ticker is available
+        setTimeout(() => {
+          const tickerSelect = document.getElementById('tech_ticker_select');
+          const indicatorSelect = document.getElementById('indicator_select');
+          
+          if (tickerSelect && indicatorSelect && tickerSelect.value && indicatorSelect.value) {
+            console.log('[TECH] Auto-rendering default technical analysis');
+            this.updateTechnicalAnalysis();
+          }
+        }, 300);
         break;
       case 'portfolio':
         console.log('💼 Initializing Portfolio tab...');
@@ -2068,71 +2273,451 @@ class DeepAriesDashboard {
   initializeAnalysisTab() {
     console.log('🔍 Initializing Analysis tab...');
     try {
-      const marketData = this.groupMarket(this.data.market);
-      this.populateSelect('tech_ticker_select', marketData.tickers);
-      this.populateSelect('candle_ticker_select', marketData.tickers);
-      this.populateSelect('volume_ticker_select', marketData.tickers);
-      this.populateSelect('correlation_tickers', marketData.tickers);
-      console.log('✅ Analysis tab initialized');
+      // Initialize market selects with default values
+      this.setSelectValue('tech_market_select', 'csi300');
+      this.setSelectValue('candle_market_select', 'csi300');
+      this.setSelectValue('volume_market_select', 'csi300');
+      this.setSelectValue('correlation_market1_select', 'csi300');
+      this.setSelectValue('correlation_market2_select', 'csi500');
+      
+      // Update ticker selects based on default market selection
+      this.updateTickerSelect('tech_market_select', 'tech_ticker_select');
+      this.updateTickerSelect('candle_market_select', 'candle_ticker_select');
+      this.updateTickerSelect('volume_market_select', 'volume_ticker_select');
+      
+      // For correlation matrix, populate with all available tickers initially
+      const allTickers = this.getTickersByMarket('all');
+      this.populateSelect('correlation_tickers', allTickers);
+      
+      // Set up market change event listeners
+      this.setupMarketChangeListeners();
+      
+      console.log(`✅ Analysis tab initialized with market selection`);
+      this.updateDebugInfo(`✅ Analysis tab initialized with market selection`);
+      
+      // Auto-render default charts for all panels
+      setTimeout(() => {
+        this.updateTechnicalAnalysis();
+        this.updateCandlestickChart();
+        this.updateVolumeAnalysis();
+        this.updateCorrelationMatrix();
+        console.log('[TECH] All Technical Analysis panels rendered with default values');
+      }, 500);
+      
     } catch (error) {
       console.error('❌ Error initializing Analysis tab:', error);
+      this.updateDebugInfo('❌ Error initializing Analysis tab: ' + error.message);
     }
+  }
+
+  /**
+   * Set up event listeners for market selection changes
+   */
+  setupMarketChangeListeners() {
+    // Technical Indicators market change
+    const techMarketSelect = document.getElementById('tech_market_select');
+    if (techMarketSelect) {
+      techMarketSelect.addEventListener('change', () => {
+        this.updateTickerSelect('tech_market_select', 'tech_ticker_select');
+      });
+    }
+
+    // Candlestick market change
+    const candleMarketSelect = document.getElementById('candle_market_select');
+    if (candleMarketSelect) {
+      candleMarketSelect.addEventListener('change', () => {
+        this.updateTickerSelect('candle_market_select', 'candle_ticker_select');
+      });
+    }
+
+    // Volume Analysis market change
+    const volumeMarketSelect = document.getElementById('volume_market_select');
+    if (volumeMarketSelect) {
+      volumeMarketSelect.addEventListener('change', () => {
+        this.updateTickerSelect('volume_market_select', 'volume_ticker_select');
+      });
+    }
+
+    // Correlation Matrix market changes
+    const corrMarket1Select = document.getElementById('correlation_market1_select');
+    const corrMarket2Select = document.getElementById('correlation_market2_select');
+    
+    if (corrMarket1Select) {
+      corrMarket1Select.addEventListener('change', () => {
+        this.updateCorrelationTickers();
+      });
+    }
+    
+    if (corrMarket2Select) {
+      corrMarket2Select.addEventListener('change', () => {
+        this.updateCorrelationTickers();
+      });
+    }
+
+    console.log('[MARKET] Market change listeners setup complete');
+  }
+
+  /**
+   * Update correlation tickers based on selected markets
+   */
+  updateCorrelationTickers() {
+    const market1Select = document.getElementById('correlation_market1_select');
+    const market2Select = document.getElementById('correlation_market2_select');
+    
+    if (!market1Select || !market2Select) return;
+    
+    const market1 = market1Select.value;
+    const market2 = market2Select.value;
+    
+    // Get tickers from both markets
+    const tickers1 = this.getTickersByMarket(market1);
+    const tickers2 = this.getTickersByMarket(market2);
+    
+    // Combine and deduplicate tickers
+    const allTickers = [...new Set([...tickers1, ...tickers2])].sort();
+    
+    // Update correlation tickers select
+    this.populateSelect('correlation_tickers', allTickers);
+    
+    console.log(`[CORR] Updated correlation tickers: ${allTickers.length} total (${tickers1.length} from ${market1}, ${tickers2.length} from ${market2})`);
+  }
+
+  /**
+   * Log available markets and their ticker counts for debugging
+   */
+  logAvailableMarkets() {
+    if (!this.data.market || !Array.isArray(this.data.market)) {
+      console.warn('[MARKET] No market data available for logging');
+      return;
+    }
+
+    const marketCounts = {};
+    this.data.market.forEach(d => {
+      const market = d.market || 'unknown';
+      marketCounts[market] = (marketCounts[market] || 0) + 1;
+    });
+
+    const uniqueMarkets = Object.keys(marketCounts).sort();
+    const totalTickers = [...new Set(this.data.market.map(d => d.ticker))].length;
+
+    console.log('[MARKET] Available markets:', {
+      markets: uniqueMarkets,
+      marketCounts: marketCounts,
+      totalTickers: totalTickers,
+      totalDataPoints: this.data.market.length
+    });
+
+    // Update market selects with available markets
+    this.updateMarketSelects(uniqueMarkets);
+  }
+
+  /**
+   * Update market select elements with available markets
+   * @param {Array} availableMarkets - Array of available market identifiers
+   */
+  updateMarketSelects(availableMarkets) {
+    const marketSelects = [
+      'tech_market_select',
+      'candle_market_select', 
+      'volume_market_select',
+      'correlation_market1_select',
+      'correlation_market2_select',
+      'var_market_select',
+      'stress_market_select',
+      'risk_metrics_market_select'
+    ];
+
+    marketSelects.forEach(selectId => {
+      const select = document.getElementById(selectId);
+      if (!select) return;
+
+      // Clear existing options
+      select.innerHTML = '';
+
+      // Add "All Markets" option
+      const allOption = document.createElement('option');
+      allOption.value = 'all';
+      allOption.textContent = 'All Markets';
+      select.appendChild(allOption);
+
+      // Add available markets
+      availableMarkets.forEach(market => {
+        const option = document.createElement('option');
+        option.value = market;
+        option.textContent = market.toUpperCase();
+        select.appendChild(option);
+      });
+
+      console.log(`[MARKET] Updated ${selectId} with ${availableMarkets.length + 1} options`);
+    });
   }
 
   updateTechnicalAnalysis() {
-    const ticker = document.getElementById('tech_ticker_select').value;
-    const indicator = document.getElementById('indicator_select').value;
+    const tickerSelect = document.getElementById('tech_ticker_select');
+    const indicatorSelect = document.getElementById('indicator_select');
     
-    if (!ticker) return;
-    
-    const tickerData = this.data.market.filter(d => d.ticker === ticker);
-    const prices = tickerData.map(d => d.close);
-    
-    let indicatorData;
-    switch(indicator) {
-      case 'sma':
-        indicatorData = this.advancedFeatures.calculateSMA(prices, 20);
-        break;
-      case 'ema':
-        indicatorData = this.advancedFeatures.calculateEMA(prices, 20);
-        break;
-      case 'rsi':
-        indicatorData = this.advancedFeatures.calculateRSI(prices);
-        break;
-      case 'macd':
-        indicatorData = this.advancedFeatures.calculateMACD(prices);
-        break;
-      case 'bollinger':
-        indicatorData = this.advancedFeatures.calculateBollingerBands(prices);
-        break;
+    if (!tickerSelect || !indicatorSelect) {
+      console.warn('[TECH] Technical analysis controls not found');
+      return;
     }
     
-    this.renderTechnicalChart('technical_chart', prices, indicatorData, indicator);
+    const ticker = tickerSelect.value;
+    const indicator = indicatorSelect.value;
+    
+    if (!ticker || !indicator) {
+      console.warn('[TECH] Missing ticker or indicator selection');
+      console.log('[TECH] Available options:', {
+        ticker: tickerSelect.options.length,
+        indicator: indicatorSelect.options.length
+      });
+      return;
+    }
+    
+    console.log(`[TECH] Updating technical analysis for ${ticker} with ${indicator}`);
+    
+    try {
+      // Check if TechnicalAnalysis module is available
+      if (!this.technicalAnalysis) {
+        console.error('[TECH] TechnicalAnalysis module not available');
+        return;
+      }
+      
+      // Get indicator data using new TechnicalAnalysis module
+      const indicatorData = this.technicalAnalysis.getIndicator(ticker, indicator, {
+        period: 20,
+        fastPeriod: 12,
+        slowPeriod: 26,
+        signalPeriod: 9
+      });
+      
+      if (!indicatorData) {
+        console.error(`[TECH] Failed to calculate ${indicator} for ${ticker}`);
+        return;
+      }
+      
+      // Get ticker data for chart
+      const tickerData = this.data.market.filter(d => d.ticker === ticker);
+      if (tickerData.length === 0) {
+        console.error(`[TECH] No data found for ticker: ${ticker}`);
+        return;
+      }
+      
+      const prices = tickerData.map(d => parseFloat(d.close));
+      const dates = tickerData.map(d => d.date);
+      
+      // Create indicators array for chart
+      const indicators = [];
+      if (indicator === 'macd') {
+        indicators.push(
+          { name: 'MACD', data: indicatorData.macd, color: '#2563eb' },
+          { name: 'Signal', data: indicatorData.signal, color: '#dc2626' },
+          { name: 'Histogram', data: indicatorData.histogram, color: '#16a34a', yaxis: 'y2' }
+        );
+      } else if (indicator === 'bollinger') {
+        indicators.push(
+          { name: 'Upper Band', data: indicatorData.upper, color: '#dc2626' },
+          { name: 'Middle Band', data: indicatorData.middle, color: '#6b7280' },
+          { name: 'Lower Band', data: indicatorData.lower, color: '#dc2626' }
+        );
+      } else {
+        indicators.push({
+          name: indicator.toUpperCase(),
+          data: indicatorData,
+          color: '#dc2626'
+        });
+      }
+      
+      // Render chart using ChartUtils
+      this.chartUtils.createTimeSeriesChart('technical_chart', {
+        prices: prices,
+        dates: dates
+      }, {
+        title: `${ticker} - ${indicator.toUpperCase()} Analysis`,
+        indicators: indicators,
+        height: 400
+      });
+      
+      console.log(`[TECH] Technical analysis chart rendered for ${ticker}`);
+    } catch (error) {
+      console.error('[TECH] Error in technical analysis:', error);
+    }
   }
 
   updateCandlestickChart() {
-    const ticker = document.getElementById('candle_ticker_select').value;
-    if (!ticker) return;
+    const ticker = document.getElementById('candle_ticker_select')?.value;
+    if (!ticker) {
+      console.warn('[CANDLE] No ticker selected');
+      return;
+    }
     
-    const tickerData = this.data.market.filter(d => d.ticker === ticker);
-    this.renderCandlestickChart('candlestick_chart', tickerData);
+    console.log(`[CANDLE] Updating candlestick chart for ${ticker}`);
+    
+    try {
+      const tickerData = this.data.market.filter(d => d.ticker === ticker);
+      if (tickerData.length === 0) {
+        console.error(`[CANDLE] No data found for ticker: ${ticker}`);
+        return;
+      }
+      
+      // Prepare OHLC data
+      const ohlcData = tickerData.map(d => ({
+        open: parseFloat(d.open || d.close),
+        high: parseFloat(d.high || d.close),
+        low: parseFloat(d.low || d.close),
+        close: parseFloat(d.close)
+      }));
+      
+      const dates = tickerData.map(d => d.date);
+      const volume = tickerData.map(d => parseFloat(d.volume || 0));
+      
+      // Render candlestick chart using ChartUtils
+      this.chartUtils.createCandlestickChart('candlestick_chart', {
+        ohlc: ohlcData,
+        dates: dates,
+        volume: volume
+      }, {
+        title: `${ticker} - Candlestick Chart`,
+        showVolume: true,
+        height: 500
+      });
+      
+      console.log(`[CANDLE] Candlestick chart rendered for ${ticker}`);
+    } catch (error) {
+      console.error('[CANDLE] Error in candlestick chart:', error);
+    }
   }
 
   updateVolumeAnalysis() {
-    const ticker = document.getElementById('volume_ticker_select').value;
-    if (!ticker) return;
+    const tickerSelect = document.getElementById('volume_ticker_select');
+    if (!tickerSelect) {
+      console.warn('[VOLUME] Volume ticker select not found');
+      return;
+    }
     
-    const tickerData = this.data.market.filter(d => d.ticker === ticker);
-    this.renderVolumeChart('volume_chart', tickerData);
+    const ticker = tickerSelect.value;
+    if (!ticker) {
+      console.warn('[VOLUME] No ticker selected');
+      return;
+    }
+    
+    console.log(`[VOLUME] Updating volume analysis for ${ticker}`);
+    
+    try {
+      const tickerData = this.data.market.filter(d => d.ticker === ticker);
+      if (tickerData.length === 0) {
+        console.error(`[VOLUME] No data found for ticker: ${ticker}`);
+        return;
+      }
+      
+      // Prepare volume data
+      const dates = tickerData.map(d => d.date);
+      const volumes = tickerData.map(d => parseFloat(d.volume || 0));
+      const prices = tickerData.map(d => parseFloat(d.close));
+      
+      // Create volume chart using ChartUtils
+      this.chartUtils.createVolumeChart('volume_chart', {
+        dates: dates,
+        volumes: volumes,
+        prices: prices
+      }, {
+        title: `${ticker} - Volume Analysis`,
+        height: 400
+      });
+      
+      console.log(`[VOLUME] Volume analysis chart rendered for ${ticker}`);
+    } catch (error) {
+      console.error('[VOLUME] Error in volume analysis:', error);
+    }
   }
 
   updateCorrelationMatrix() {
-    const selectedTickers = Array.from(document.getElementById('correlation_tickers').selectedOptions)
+    const correlationSelect = document.getElementById('correlation_tickers');
+    if (!correlationSelect) {
+      console.warn('[CORR] Correlation tickers select not found');
+      return;
+    }
+    
+    let selectedTickers = Array.from(correlationSelect.selectedOptions)
       .map(o => o.value).slice(0, 10);
     
-    if (selectedTickers.length < 2) return;
+    // If no tickers selected, use first 5 available tickers as default
+    if (selectedTickers.length < 2) {
+      const allOptions = Array.from(correlationSelect.options);
+      selectedTickers = allOptions.slice(0, 5).map(option => option.value);
+      console.log('[CORR] Using default tickers for correlation analysis:', selectedTickers);
+    }
     
-    this.renderCorrelationMatrix('correlation_matrix', selectedTickers);
+    if (selectedTickers.length < 2) {
+      console.warn('[CORR] Need at least 2 tickers for correlation analysis');
+      return;
+    }
+    
+    console.log(`[CORR] Updating correlation matrix for ${selectedTickers.length} tickers`);
+    
+    try {
+      // Calculate correlation matrix
+      const correlationMatrix = [];
+      const returns = [];
+      
+      // Get returns for each ticker
+      for (const ticker of selectedTickers) {
+        const tickerData = this.data.market.filter(d => d.ticker === ticker);
+        if (tickerData.length === 0) continue;
+        
+        const prices = tickerData.map(d => parseFloat(d.close));
+        const tickerReturns = this.riskManagement.calculateReturns(prices);
+        returns.push(tickerReturns);
+      }
+      
+      // Calculate correlation between each pair
+      for (let i = 0; i < selectedTickers.length; i++) {
+        const row = [];
+        for (let j = 0; j < selectedTickers.length; j++) {
+          if (i === j) {
+            row.push(1.0); // Perfect correlation with itself
+          } else {
+            const correlation = this.calculateCorrelation(returns[i], returns[j]);
+            row.push(correlation);
+          }
+        }
+        correlationMatrix.push(row);
+      }
+      
+      // Render correlation heatmap using ChartUtils
+      this.chartUtils.createCorrelationHeatmap('correlation_matrix', correlationMatrix, {
+        title: 'Ticker Correlation Matrix',
+        tickers: selectedTickers,
+        height: 400
+      });
+      
+      console.log(`[CORR] Correlation matrix rendered for ${selectedTickers.length} tickers`);
+    } catch (error) {
+      console.error('[CORR] Error in correlation matrix:', error);
+    }
+  }
+  
+  /**
+   * Calculate correlation coefficient between two arrays
+   * @param {Array} x - First array
+   * @param {Array} y - Second array
+   * @returns {number} Correlation coefficient
+   */
+  calculateCorrelation(x, y) {
+    if (!x || !y || x.length !== y.length || x.length === 0) {
+      return 0;
+    }
+    
+    const n = x.length;
+    const sumX = x.reduce((a, b) => a + b, 0);
+    const sumY = y.reduce((a, b) => a + b, 0);
+    const sumXY = x.reduce((sum, xi, i) => sum + xi * y[i], 0);
+    const sumX2 = x.reduce((sum, xi) => sum + xi * xi, 0);
+    const sumY2 = y.reduce((sum, yi) => sum + yi * yi, 0);
+    
+    const numerator = n * sumXY - sumX * sumY;
+    const denominator = Math.sqrt((n * sumX2 - sumX * sumX) * (n * sumY2 - sumY * sumY));
+    
+    return denominator === 0 ? 0 : numerator / denominator;
   }
 
   // Portfolio Tab Methods
@@ -2144,7 +2729,8 @@ class DeepAriesDashboard {
       this.populateSelect('portfolio_market_select', markets);
 
       const modelSel = document.getElementById('model_select');
-      const dateSel = document.getElementById('date_select');
+      // Note: date_select element doesn't exist in HTML
+      const dateSel = null;
       const marketSel = document.getElementById('portfolio_market_select');
 
       const models = this.unique(this.data.result.map(r => r.model).filter(Boolean)).sort();
@@ -2540,40 +3126,548 @@ class DeepAriesDashboard {
   initializeRiskTab() {
     console.log('⚠️ Initializing Risk tab...');
     try {
-      this.calculateRiskMetrics();
+      // Set up market change event listeners for risk management
+      this.setupRiskMarketChangeListeners();
       
-      // Render additional risk analysis features
-      console.log('📊 Rendering risk analysis features...');
-      this.renderPortfolioRiskAnalysis();
-      this.renderDrawdownAnalysis();
-      this.renderRiskAdjustedReturns();
-      this.renderCorrelationAnalysis();
+      // Market selects will be populated by updateMarketSelects() called from logAvailableMarkets()
+      // Set default values after markets are available
+      setTimeout(() => {
+        const availableMarkets = this.getAvailableMarketsFromData();
+        if (availableMarkets.length > 0) {
+          // Set default market to first available market
+          const defaultMarket = availableMarkets[0];
+          this.setSelectValue('var_market_select', defaultMarket);
+          this.setSelectValue('stress_market_select', defaultMarket);
+          this.setSelectValue('risk_metrics_market_select', defaultMarket);
+          
+          // Update ticker selects based on default market selection
+          this.updateTickerSelect('var_market_select', 'var_ticker_select');
+          this.updateTickerSelect('stress_market_select', 'stress_ticker_select');
+          this.updateTickerSelect('risk_metrics_market_select', 'risk_metrics_ticker_select');
+          
+          // Auto-render default risk analysis
+          setTimeout(() => {
+            this.calculateVaR();
+            this.runStressTest();
+            this.calculateRiskMetrics();
+            console.log('[RISK] All Risk Management panels rendered with default values');
+          }, 200);
+        }
+      }, 100);
       
-      console.log('✅ Risk tab initialized');
+      console.log(`✅ Risk tab initialized with market selection`);
+      this.updateDebugInfo(`✅ Risk tab initialized with market selection`);
+      
     } catch (error) {
       console.error('❌ Error initializing Risk tab:', error);
+      this.updateDebugInfo('❌ Error initializing Risk tab: ' + error.message);
     }
   }
 
+  /**
+   * Get available markets from current data
+   * @returns {Array} Array of available market identifiers
+   */
+  getAvailableMarketsFromData() {
+    if (!this.data.market || !Array.isArray(this.data.market)) {
+      return [];
+    }
+
+    const marketCounts = {};
+    this.data.market.forEach(d => {
+      const market = d.market || 'unknown';
+      marketCounts[market] = (marketCounts[market] || 0) + 1;
+    });
+
+    return Object.keys(marketCounts).sort();
+  }
+
+  /**
+   * Set up event listeners for risk management market selection changes
+   */
+  setupRiskMarketChangeListeners() {
+    // VaR market change
+    const varMarketSelect = document.getElementById('var_market_select');
+    if (varMarketSelect) {
+      varMarketSelect.addEventListener('change', () => {
+        this.updateTickerSelect('var_market_select', 'var_ticker_select');
+      });
+    }
+
+    // Stress test market change
+    const stressMarketSelect = document.getElementById('stress_market_select');
+    if (stressMarketSelect) {
+      stressMarketSelect.addEventListener('change', () => {
+        this.updateTickerSelect('stress_market_select', 'stress_ticker_select');
+      });
+    }
+
+    // Risk metrics market change
+    const riskMetricsMarketSelect = document.getElementById('risk_metrics_market_select');
+    if (riskMetricsMarketSelect) {
+      riskMetricsMarketSelect.addEventListener('change', () => {
+        this.updateTickerSelect('risk_metrics_market_select', 'risk_metrics_ticker_select');
+      });
+    }
+
+    console.log('[RISK] Risk management market change listeners setup complete');
+  }
+
   calculateVaR() {
-    const confidence = parseFloat(document.getElementById('var_confidence').value);
-    const horizon = parseInt(document.getElementById('var_horizon').value);
+    const confidenceSelect = document.getElementById('var_confidence');
+    const horizonSelect = document.getElementById('var_horizon');
+    const tickerSelect = document.getElementById('var_ticker_select');
     
-    // Mock VaR calculation
-    const mockReturns = Array.from({length: 100}, () => (Math.random() - 0.5) * 0.1);
-    const varValue = this.advancedFeatures.calculateVaR(mockReturns, confidence);
-    const expectedShortfall = this.advancedFeatures.calculateExpectedShortfall(mockReturns, confidence);
+    if (!confidenceSelect || !horizonSelect || !tickerSelect) {
+      console.warn('[VAR] VaR controls not found');
+      return;
+    }
     
-    document.getElementById('var_value').textContent = this.advancedFeatures.formatPercentage(varValue);
-    document.getElementById('expected_shortfall').textContent = this.advancedFeatures.formatPercentage(expectedShortfall);
+    const confidence = parseFloat(confidenceSelect.value);
+    const horizon = parseInt(horizonSelect.value);
+    const ticker = tickerSelect.value;
     
-    this.renderVaRChart('var_chart', mockReturns, varValue);
+    if (!ticker) {
+      console.warn('[VAR] No ticker selected for VaR calculation');
+      return;
+    }
+    
+    console.log(`[VAR] Calculating VaR for ${ticker} with ${(confidence * 100).toFixed(0)}% confidence over ${horizon} days`);
+    
+    try {
+      
+      // Calculate VaR using actual data
+      const tickerData = this.data.market.filter(d => d.ticker === ticker);
+      if (tickerData.length === 0) {
+        console.error(`[VAR] No data found for ticker: ${ticker}`);
+        return;
+      }
+      
+      const prices = tickerData.map(d => parseFloat(d.close));
+      const returns = this.calculateReturns(prices);
+      
+      // Calculate VaR using historical method with time horizon scaling
+      const varResult = this.calculateHistoricalVaR(returns, confidence, horizon);
+      const expectedShortfall = this.calculateExpectedShortfall(returns, confidence, horizon);
+      
+      // Update UI with VaR results
+      const varValueEl = document.getElementById('var_value');
+      const expectedShortfallEl = document.getElementById('expected_shortfall');
+      
+      if (varValueEl) {
+        varValueEl.textContent = `${(varResult * 100).toFixed(2)}%`;
+      }
+      
+      if (expectedShortfallEl) {
+        expectedShortfallEl.textContent = `${(expectedShortfall * 100).toFixed(2)}%`;
+      }
+      
+      // Render VaR distribution chart
+      this.chartUtils.createVaRChart('var_chart', returns, {
+        title: `${ticker} - VaR Distribution (${(confidence * 100).toFixed(0)}% Confidence)`,
+        confidenceLevel: confidence,
+        height: 400
+      });
+      
+      console.log(`[VAR] VaR calculation completed: ${(varResult * 100).toFixed(2)}%`);
+    } catch (error) {
+      console.error('[VAR] Error in VaR calculation:', error);
+    }
   }
 
   runStressTest() {
-    const scenario = document.getElementById('stress_scenario').value;
-    // Mock stress test
-    this.renderStressTestChart('stress_test_chart', scenario);
+    const scenarioSelect = document.getElementById('stress_scenario');
+    const tickerSelect = document.getElementById('stress_ticker_select');
+    
+    if (!scenarioSelect || !tickerSelect) {
+      console.warn('[STRESS] Stress test controls not found');
+      return;
+    }
+    
+    const scenario = scenarioSelect.value;
+    const ticker = tickerSelect.value;
+    
+    if (!ticker) {
+      console.warn('[STRESS] No ticker selected for stress test');
+      return;
+    }
+    
+    console.log(`[STRESS] Running stress test for ${ticker} with scenario: ${scenario}`);
+    
+    try {
+      const tickerData = this.data.market.filter(d => d.ticker === ticker);
+      
+      if (tickerData.length === 0) {
+        console.error(`[STRESS] No data found for ticker: ${ticker}`);
+        return;
+      }
+      
+      const prices = tickerData.map(d => parseFloat(d.close));
+      const returns = this.calculateReturns(prices);
+      
+      // Run stress test scenarios using actual data
+      const stressResults = this.runStressTestScenario(returns, scenario);
+      
+      // Render stress test results
+      this.renderStressTestResults('stress_test_chart', stressResults, scenario, ticker);
+      
+      console.log(`[STRESS] Stress test completed for ${scenario} scenario`);
+    } catch (error) {
+      console.error('[STRESS] Error in stress test:', error);
+    }
+  }
+  
+  /**
+   * Get stress shock value for scenario
+   * @param {string} scenario - Stress scenario name
+   * @returns {number} Shock value
+   */
+  getStressShock(scenario) {
+    const shocks = {
+      market_crash: -0.20,    // 20% market decline
+      recession: -0.15,      // 15% market decline
+      volatility_spike: 0.30, // 30% volatility increase
+      custom: -0.10          // 10% custom scenario
+    };
+    
+    return shocks[scenario] || -0.10;
+  }
+  
+  /**
+   * Render stress test results
+   * @param {string} containerId - Chart container ID
+   * @param {Object} results - Stress test results
+   * @param {string} scenario - Scenario name
+   * @param {string} ticker - Ticker symbol
+   */
+  renderStressTestResults(containerId, results, scenario, ticker) {
+    const element = document.getElementById(containerId);
+    if (!element) {
+      console.error(`[STRESS] Container ${containerId} not found`);
+      return;
+    }
+    
+    const scenarioResult = results[scenario];
+    if (!scenarioResult) {
+      console.error(`[STRESS] No results for scenario: ${scenario}`);
+      return;
+    }
+    
+    // Create traces for original and stressed returns
+    const traces = [
+      {
+        x: scenarioResult.stressedReturns,
+        type: 'histogram',
+        name: 'Stressed Returns',
+        marker: { color: '#dc2626', opacity: 0.7 },
+        nbinsx: 30
+      }
+    ];
+    
+    const layout = {
+      title: {
+        text: `${ticker} - ${scenario.replace('_', ' ').toUpperCase()} Stress Test`,
+        font: { size: 16 }
+      },
+      xaxis: {
+        title: 'Returns',
+        tickformat: '.2%'
+      },
+      yaxis: {
+        title: 'Frequency'
+      },
+      height: 400,
+      margin: { t: 40, r: 10, b: 40, l: 50 },
+      showlegend: true
+    };
+    
+    Plotly.newPlot(containerId, traces, layout, { responsive: true });
+    console.log(`[STRESS] Stress test chart rendered for ${scenario}`);
+  }
+
+  /**
+   * Calculate comprehensive risk metrics for selected ticker
+   */
+  calculateRiskMetrics() {
+    const tickerSelect = document.getElementById('risk_metrics_ticker_select');
+    if (!tickerSelect) {
+      console.warn('[RISK_METRICS] Risk metrics ticker select not found');
+      return;
+    }
+    
+    const ticker = tickerSelect.value;
+    if (!ticker) {
+      console.warn('[RISK_METRICS] No ticker selected for risk metrics calculation');
+      return;
+    }
+    
+    console.log(`[RISK_METRICS] Calculating risk metrics for ${ticker}`);
+    
+    try {
+      const tickerData = this.data.market.filter(d => d.ticker === ticker);
+      if (tickerData.length === 0) {
+        console.error(`[RISK_METRICS] No data found for ticker: ${ticker}`);
+        return;
+      }
+      
+      const prices = tickerData.map(d => parseFloat(d.close));
+      const returns = this.calculateReturns(prices);
+      
+      // Calculate risk metrics
+      const volatility = this.calculateVolatility(returns);
+      const sharpeRatio = this.calculateSharpeRatio(returns);
+      const maxDrawdown = this.calculateMaxDrawdown(prices);
+      const beta = this.calculateBeta(returns);
+      
+      // Update UI with risk metrics
+      this.updateRiskMetric('volatility', volatility);
+      this.updateRiskMetric('sharpe_ratio', sharpeRatio);
+      this.updateRiskMetric('max_drawdown', maxDrawdown);
+      this.updateRiskMetric('beta', beta);
+      
+      // Render risk metrics chart
+      this.renderRiskMetricsChart('risk_metrics_chart', {
+        ticker: ticker,
+        volatility: volatility,
+        sharpeRatio: sharpeRatio,
+        maxDrawdown: maxDrawdown,
+        beta: beta,
+        returns: returns
+      });
+      
+      console.log(`[RISK_METRICS] Risk metrics calculated for ${ticker}`);
+    } catch (error) {
+      console.error('[RISK_METRICS] Error in risk metrics calculation:', error);
+    }
+  }
+
+  /**
+   * Update risk metric display
+   * @param {string} metricId - Metric element ID
+   * @param {number} value - Metric value
+   */
+  updateRiskMetric(metricId, value) {
+    const element = document.getElementById(metricId);
+    if (element) {
+      if (metricId === 'volatility' || metricId === 'max_drawdown') {
+        element.textContent = `${(value * 100).toFixed(2)}%`;
+      } else {
+        element.textContent = value.toFixed(3);
+      }
+    }
+  }
+
+  /**
+   * Calculate volatility (standard deviation of returns)
+   * @param {Array} returns - Array of returns
+   * @returns {number} Volatility
+   */
+  calculateVolatility(returns) {
+    if (!returns || returns.length === 0) return 0;
+    
+    const mean = returns.reduce((sum, r) => sum + r, 0) / returns.length;
+    const variance = returns.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) / returns.length;
+    return Math.sqrt(variance);
+  }
+
+  /**
+   * Calculate Sharpe ratio
+   * @param {Array} returns - Array of returns
+   * @param {number} riskFreeRate - Risk-free rate (default: 0.02)
+   * @returns {number} Sharpe ratio
+   */
+  calculateSharpeRatio(returns, riskFreeRate = 0.02) {
+    if (!returns || returns.length === 0) return 0;
+    
+    const meanReturn = returns.reduce((sum, r) => sum + r, 0) / returns.length;
+    const volatility = this.calculateVolatility(returns);
+    
+    return volatility === 0 ? 0 : (meanReturn - riskFreeRate / 252) / volatility;
+  }
+
+  /**
+   * Calculate maximum drawdown
+   * @param {Array} prices - Array of prices
+   * @returns {number} Maximum drawdown
+   */
+  calculateMaxDrawdown(prices) {
+    if (!prices || prices.length === 0) return 0;
+    
+    let maxPrice = prices[0];
+    let maxDrawdown = 0;
+    
+    for (let i = 1; i < prices.length; i++) {
+      if (prices[i] > maxPrice) {
+        maxPrice = prices[i];
+      } else {
+        const drawdown = (maxPrice - prices[i]) / maxPrice;
+        maxDrawdown = Math.max(maxDrawdown, drawdown);
+      }
+    }
+    
+    return maxDrawdown;
+  }
+
+  /**
+   * Calculate beta (simplified - would need market returns in real implementation)
+   * @param {Array} returns - Array of returns
+   * @returns {number} Beta
+   */
+  calculateBeta(returns) {
+    // Simplified beta calculation - in real implementation, you'd compare with market returns
+    const volatility = this.calculateVolatility(returns);
+    return Math.min(volatility * 10, 2.0); // Simplified approximation
+  }
+
+  /**
+   * Render risk metrics chart
+   * @param {string} containerId - Chart container ID
+   * @param {Object} data - Risk metrics data
+   */
+  renderRiskMetricsChart(containerId, data) {
+    const element = document.getElementById(containerId);
+    if (!element) {
+      console.error(`[RISK_METRICS] Container ${containerId} not found`);
+      return;
+    }
+    
+    // Create a simple bar chart of risk metrics
+    const traces = [
+      {
+        x: ['Volatility', 'Sharpe Ratio', 'Max Drawdown', 'Beta'],
+        y: [data.volatility * 100, data.sharpeRatio, data.maxDrawdown * 100, data.beta],
+        type: 'bar',
+        marker: { color: ['#dc2626', '#16a34a', '#dc2626', '#2563eb'] }
+      }
+    ];
+    
+    const layout = {
+      title: {
+        text: `${data.ticker} - Risk Metrics`,
+        font: { size: 16 }
+      },
+      xaxis: { title: 'Metrics' },
+      yaxis: { title: 'Value' },
+      height: 400,
+      margin: { t: 40, r: 10, b: 40, l: 50 }
+    };
+    
+    Plotly.newPlot(containerId, traces, layout, { responsive: true });
+    console.log(`[RISK_METRICS] Risk metrics chart rendered for ${data.ticker}`);
+  }
+
+  /**
+   * Calculate daily returns from price data
+   * @param {Array} prices - Array of prices
+   * @returns {Array} Array of daily returns
+   */
+  calculateReturns(prices) {
+    if (!prices || prices.length < 2) return [];
+    
+    const returns = [];
+    for (let i = 1; i < prices.length; i++) {
+      const returnValue = (prices[i] - prices[i-1]) / prices[i-1];
+      returns.push(returnValue);
+    }
+    return returns;
+  }
+
+  /**
+   * Calculate Historical VaR
+   * @param {Array} returns - Array of returns
+   * @param {number} confidenceLevel - Confidence level (e.g., 0.95 for 95%)
+   * @param {number} timeHorizon - Time horizon in days (default: 1)
+   * @returns {number} VaR value
+   */
+  calculateHistoricalVaR(returns, confidenceLevel, timeHorizon = 1) {
+    if (!returns || returns.length === 0) return 0;
+    
+    // Sort returns in ascending order
+    const sortedReturns = [...returns].sort((a, b) => a - b);
+    
+    // Calculate the index for the confidence level
+    const index = Math.floor((1 - confidenceLevel) * sortedReturns.length);
+    
+    // Get the VaR for daily returns
+    const dailyVaR = Math.abs(sortedReturns[index]);
+    
+    // Scale VaR for the time horizon using square root of time rule
+    const scaledVaR = dailyVaR * Math.sqrt(timeHorizon);
+    
+    return scaledVaR;
+  }
+
+  /**
+   * Calculate Expected Shortfall (Conditional VaR)
+   * @param {Array} returns - Array of returns
+   * @param {number} confidenceLevel - Confidence level (e.g., 0.95 for 95%)
+   * @param {number} timeHorizon - Time horizon in days (default: 1)
+   * @returns {number} Expected Shortfall value
+   */
+  calculateExpectedShortfall(returns, confidenceLevel, timeHorizon = 1) {
+    if (!returns || returns.length === 0) return 0;
+    
+    // Sort returns in ascending order
+    const sortedReturns = [...returns].sort((a, b) => a - b);
+    
+    // Calculate the number of observations in the tail
+    const tailSize = Math.floor((1 - confidenceLevel) * sortedReturns.length);
+    
+    if (tailSize === 0) return 0;
+    
+    // Calculate the average of the worst returns
+    const tailReturns = sortedReturns.slice(0, tailSize);
+    const averageTailReturn = tailReturns.reduce((sum, r) => sum + r, 0) / tailReturns.length;
+    
+    // Get the Expected Shortfall for daily returns
+    const dailyES = Math.abs(averageTailReturn);
+    
+    // Scale Expected Shortfall for the time horizon using square root of time rule
+    const scaledES = dailyES * Math.sqrt(timeHorizon);
+    
+    return scaledES;
+  }
+
+  /**
+   * Run stress test scenario on returns data
+   * @param {Array} returns - Array of returns
+   * @param {string} scenario - Stress test scenario
+   * @returns {Object} Stress test results
+   */
+  runStressTestScenario(returns, scenario) {
+    if (!returns || returns.length === 0) {
+      return { stressedReturns: [], originalReturns: returns };
+    }
+
+    const shock = this.getStressShock(scenario);
+    let stressedReturns;
+
+    switch (scenario) {
+      case 'market_crash':
+      case 'recession':
+        // Apply negative shock to all returns
+        stressedReturns = returns.map(r => r + shock);
+        break;
+      case 'volatility_spike':
+        // Increase volatility by scaling returns
+        const meanReturn = returns.reduce((sum, r) => sum + r, 0) / returns.length;
+        const scaledReturns = returns.map(r => (r - meanReturn) * (1 + shock) + meanReturn);
+        stressedReturns = scaledReturns;
+        break;
+      case 'custom':
+        // Apply custom shock
+        stressedReturns = returns.map(r => r + shock);
+        break;
+      default:
+        stressedReturns = returns;
+    }
+
+    return {
+      originalReturns: returns,
+      stressedReturns: stressedReturns,
+      shock: shock,
+      scenario: scenario
+    };
   }
 
   calculateRiskMetrics() {
